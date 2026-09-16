@@ -5312,14 +5312,53 @@
             {
                 "children": [],
                 "depends_on": null,
-                "help": null,
-                "id": "GAS_THRESHOLD_MV",
-                "name": "GAS_THRESHOLD_MV",
+                "help": "Voltage feeding the MQ-2 module's VCC pin. The datasheet curve\nused for the ppm estimate assumes the standard 5V supply the\nsensor's heater is designed for; powering it at 3.3V under-heats\nthe sensing element and makes the ppm estimate unreliable.",
+                "id": "GAS_SENSOR_VCC_MV",
+                "name": "GAS_SENSOR_VCC_MV",
                 "range": [
-                    100,
-                    1500
+                    4500,
+                    5500
                 ],
-                "title": "Gas alarm threshold (mV)",
+                "title": "MQ-2 sensor supply voltage VCC (mV)",
+                "type": "int"
+            },
+            {
+                "children": [],
+                "depends_on": null,
+                "help": "Value of the load resistor on the MQ-2 breakout board, used with\nthe AOUT reading to derive the sensor's resistance (Rs). Check\nyour specific module's schematic/silkscreen; 5k ohm is the most\ncommon default on cheap breakout boards.",
+                "id": "GAS_LOAD_RESISTOR_OHM",
+                "name": "GAS_LOAD_RESISTOR_OHM",
+                "range": [
+                    1000,
+                    20000
+                ],
+                "title": "MQ-2 module load resistor RL (ohm)",
+                "type": "int"
+            },
+            {
+                "children": [],
+                "depends_on": null,
+                "help": "If AOUT is wired directly to the ADC pin, leave at 100. If you\nadded an external voltage divider (recommended, since AOUT can\nexceed the ESP32's 3.3V ADC limit) to protect the GPIO, set this\nto the percentage of the real AOUT voltage that reaches the ADC\npin, e.g. a 1:2 divider (10k/10k to GND) reaching half of AOUT is\n50. This is needed to reconstruct the true sensor voltage before\nestimating ppm.",
+                "id": "GAS_ADC_DIVIDER_PERCENT",
+                "name": "GAS_ADC_DIVIDER_PERCENT",
+                "range": [
+                    20,
+                    100
+                ],
+                "title": "AOUT voltage divider ratio (percent reaching the ADC pin)",
+                "type": "int"
+            },
+            {
+                "children": [],
+                "depends_on": null,
+                "help": "Alarm fires once the estimated LPG concentration (derived from\nthe MQ-2 Rs/Ro curve) reaches this value. This is an estimate\nfrom a low-cost, uncalibrated-grade sensor, not a certified\nsafety measurement -- treat it as an early-warning trigger, not\na LEL-certified threshold.",
+                "id": "GAS_THRESHOLD_PPM",
+                "name": "GAS_THRESHOLD_PPM",
+                "range": [
+                    50,
+                    10000
+                ],
+                "title": "Gas alarm threshold (ppm, estimated LPG concentration)",
                 "type": "int"
             },
             {
@@ -5346,6 +5385,19 @@
                     600
                 ],
                 "title": "Cooldown between alarm sends (s)",
+                "type": "int"
+            },
+            {
+                "children": [],
+                "depends_on": null,
+                "help": "GPIO driving the local warning LED. Lights up whenever the gas\nreading is above the alarm threshold, independent of Wi-Fi or\nDiscord status. Default (2) is the onboard LED on most ESP32\nDevKit boards.",
+                "id": "GAS_LED_GPIO",
+                "name": "GAS_LED_GPIO",
+                "range": [
+                    0,
+                    33
+                ],
+                "title": "Alarm LED GPIO pin",
                 "type": "int"
             },
             {
@@ -5386,6 +5438,16 @@
                 "name": "GAS_DEVICE_NAME",
                 "range": null,
                 "title": "Device name (shown in Discord message)",
+                "type": "string"
+            },
+            {
+                "children": [],
+                "depends_on": null,
+                "help": "Address of the Mosquitto/MQTT broker reachable from the ESP32\n(e.g. the LAN IP of the machine running the Node-RED + Mosquitto\ndocker-compose stack). Leave empty to disable MQTT publishing.\nReadings are published to \"airgas/<device>/reading\" and alarms\nto \"airgas/<device>/alarm\".",
+                "id": "GAS_MQTT_BROKER_URI",
+                "name": "GAS_MQTT_BROKER_URI",
+                "range": null,
+                "title": "MQTT broker URI (mqtt://host:port), empty to disable",
                 "type": "string"
             }
         ],

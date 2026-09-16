@@ -70,15 +70,16 @@ esp_err_t gas_discord_init(void)
     return ESP_OK;
 }
 
-bool gas_discord_send_alarm(uint16_t mv)
+bool gas_discord_send_alarm(float ppm, uint16_t mv)
 {
     const char *url = CONFIG_GAS_DISCORD_WEBHOOK;
     if (strlen(url) == 0) return false;
 
     int n = snprintf(s_payload, sizeof(s_payload),
                      "{\"content\": \"**%s** - GAS ALARM "
-                     "**%u mV** (threshold %d mV)\"}",
-                     CONFIG_GAS_DEVICE_NAME, mv, CONFIG_GAS_THRESHOLD_MV);
+                     "**~%d ppm** (threshold %d ppm, raw %u mV)\"}",
+                     CONFIG_GAS_DEVICE_NAME, (int)ppm,
+                     CONFIG_GAS_THRESHOLD_PPM, mv);
     if (n < 0 || (size_t)n >= sizeof(s_payload)) {
         ESP_LOGE(TAG, "payload too long");
         return false;

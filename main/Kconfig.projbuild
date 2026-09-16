@@ -10,10 +10,49 @@ menu "Gas Monitor"
         range 0 7
         default 0
 
-    config GAS_THRESHOLD_MV
-        int "Gas alarm threshold (mV)"
-        range 100 1500
-        default 800
+    config GAS_SENSOR_VCC_MV
+        int "MQ-2 sensor supply voltage VCC (mV)"
+        range 4500 5500
+        default 5000
+        help
+            Voltage feeding the MQ-2 module's VCC pin. The datasheet curve
+            used for the ppm estimate assumes the standard 5V supply the
+            sensor's heater is designed for; powering it at 3.3V under-heats
+            the sensing element and makes the ppm estimate unreliable.
+
+    config GAS_LOAD_RESISTOR_OHM
+        int "MQ-2 module load resistor RL (ohm)"
+        range 1000 20000
+        default 5000
+        help
+            Value of the load resistor on the MQ-2 breakout board, used with
+            the AOUT reading to derive the sensor's resistance (Rs). Check
+            your specific module's schematic/silkscreen; 5k ohm is the most
+            common default on cheap breakout boards.
+
+    config GAS_ADC_DIVIDER_PERCENT
+        int "AOUT voltage divider ratio (percent reaching the ADC pin)"
+        range 20 100
+        default 100
+        help
+            If AOUT is wired directly to the ADC pin, leave at 100. If you
+            added an external voltage divider (recommended, since AOUT can
+            exceed the ESP32's 3.3V ADC limit) to protect the GPIO, set this
+            to the percentage of the real AOUT voltage that reaches the ADC
+            pin, e.g. a 1:2 divider (10k/10k to GND) reaching half of AOUT is
+            50. This is needed to reconstruct the true sensor voltage before
+            estimating ppm.
+
+    config GAS_THRESHOLD_PPM
+        int "Gas alarm threshold (ppm, estimated LPG concentration)"
+        range 50 10000
+        default 1000
+        help
+            Alarm fires once the estimated LPG concentration (derived from
+            the MQ-2 Rs/Ro curve) reaches this value. This is an estimate
+            from a low-cost, uncalibrated-grade sensor, not a certified
+            safety measurement -- treat it as an early-warning trigger, not
+            a LEL-certified threshold.
 
     config GAS_CHECK_PERIOD_MS
         int "Sensor check period (ms)"
@@ -24,6 +63,16 @@ menu "Gas Monitor"
         int "Cooldown between alarm sends (s)"
         range 5 600
         default 60
+
+    config GAS_LED_GPIO
+        int "Alarm LED GPIO pin"
+        range 0 33
+        default 2
+        help
+            GPIO driving the local warning LED. Lights up whenever the gas
+            reading is above the alarm threshold, independent of Wi-Fi or
+            Discord status. Default (2) is the onboard LED on most ESP32
+            DevKit boards.
 
     config GAS_WIFI_SSID
         string "Wi-Fi SSID"
@@ -37,5 +86,15 @@ menu "Gas Monitor"
     config GAS_DEVICE_NAME
         string "Device name (shown in Discord message)"
         default "Gas-Monitor-01"
+
+    config GAS_MQTT_BROKER_URI
+        string "MQTT broker URI (mqtt://host:port), empty to disable"
+        default "mqtt://172.16.20.130:1883"
+        help
+            Address of the Mosquitto/MQTT broker reachable from the ESP32
+            (e.g. the LAN IP of the machine running the Node-RED + Mosquitto
+            docker-compose stack). Leave empty to disable MQTT publishing.
+            Readings are published to "airgas/<device>/reading" and alarms
+            to "airgas/<device>/alarm".
 
 endmenu

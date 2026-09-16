@@ -160,3 +160,4 @@ D:/Espressif/frameworks/air_gas/build/esp-idf/spiffs/libspiffs.a
 D:/Espressif/frameworks/air_gas/build/esp-idf/wifi_provisioning/libwifi_provisioning.a
 D:/Espressif/frameworks/air_gas/build/esp-idf/json/libjson.a
 D:/Espressif/frameworks/air_gas/build/esp-idf/main/libmain.a
+D:/Espressif/frameworks/air_gas/build/esp-idf/mqtt/libmqtt.a
