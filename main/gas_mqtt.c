@@ -12,6 +12,7 @@ static bool s_connected = false;
 static char s_topic_reading[96];
 static char s_topic_alarm[96];
 static char s_topic_status[96];
+static char s_topic_aq_reading[96];
 
 static void mqtt_event_handler(void *handler_args, esp_event_base_t base,
                                 int32_t event_id, void *event_data)
@@ -31,7 +32,17 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base,
         ESP_LOGW(TAG, "Disconnected from MQTT broker");
         break;
     case MQTT_EVENT_ERROR:
-        ESP_LOGE(TAG, "MQTT error");
+        if (event->error_handle->error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT) {
+            ESP_LOGE(TAG, "MQTT transport error: esp_err=%s sock_errno=%d",
+                     esp_err_to_name(event->error_handle->esp_tls_last_esp_err),
+                     event->error_handle->esp_transport_sock_errno);
+        } else if (event->error_handle->error_type ==
+                   MQTT_ERROR_TYPE_CONNECTION_REFUSED) {
+            ESP_LOGE(TAG, "MQTT connection refused, return_code=%d",
+                     event->error_handle->connect_return_code);
+        } else {
+            ESP_LOGE(TAG, "MQTT error, type=%d", event->error_handle->error_type);
+        }
         break;
     default:
         break;
@@ -51,6 +62,8 @@ esp_err_t gas_mqtt_init(void)
              CONFIG_GAS_DEVICE_NAME);
     snprintf(s_topic_status, sizeof(s_topic_status), "airgas/%s/status",
              CONFIG_GAS_DEVICE_NAME);
+    snprintf(s_topic_aq_reading, sizeof(s_topic_aq_reading),
+             "airquality/%s/reading", CONFIG_GAS_DEVICE_NAME);
 
     /* Last Will: broker publishes this (retained) if the client disconnects
      * ungracefully, so Node-RED can show the device as offline without
@@ -125,4 +138,24 @@ void gas_mqtt_publish_alarm(float ppm, uint16_t mv)
         return;
     }
     esp_mqtt_client_publish(s_client, s_topic_alarm, payload, 0, 1, 0);
+}
+
+void gas_mqtt_publish_air_quality(float co2_ppm, uint16_t mv, bool poor)
+{
+    if (!s_connected) {
+        return;
+    }
+#if CONFIG_AQ_ENABLE
+    int threshold = CONFIG_AQ_THRESHOLD_PPM;
+#else
+    int threshold = 0;
+#endif
+    char payload[128];
+    int n = snprintf(payload, sizeof(payload),
+                      "{\"co2_ppm\":%d,\"mv\":%u,\"threshold\":%d,\"poor\":%s}",
+                      (int)co2_ppm, mv, threshold, poor ? "true" : "false");
+    if (n < 0 || (size_t)n >= sizeof(payload)) {
+        return;
+    }
+    esp_mqtt_client_publish(s_client, s_topic_aq_reading, payload, 0, 0, 0);
 }

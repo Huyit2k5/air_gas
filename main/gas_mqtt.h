@@ -13,4 +13,6 @@ void gas_mqtt_publish_reading(float ppm, uint16_t mv, bool alarm);
 
 void gas_mqtt_publish_alarm(float ppm, uint16_t mv);
 
+void gas_mqtt_publish_air_quality(float co2_ppm, uint16_t mv, bool poor);
+
 #endif

@@ -5,6 +5,7 @@
 #include "sdkconfig.h"
 
 #include "gas_sensor.h"
+#include "air_sensor.h"
 #include "gas_network.h"
 #include "gas_discord.h"
 #include "gas_led.h"
@@ -26,6 +27,7 @@ void app_main(void)
     ESP_LOGI(TAG, "=====================================");
 
     ESP_ERROR_CHECK(gas_sensor_init());
+    ESP_ERROR_CHECK(air_sensor_init());
     ESP_ERROR_CHECK(gas_led_init());
     ESP_ERROR_CHECK(gas_network_start());
 
@@ -58,8 +60,12 @@ void app_main(void)
         gas_reading_t reading = gas_sensor_read();
         bool alarm = gas_sensor_is_alarm(reading.ppm);
 
+        air_reading_t air = air_sensor_read();
+        bool poor_air = air_sensor_is_poor(air.co2_ppm);
+
         gas_led_set(alarm);
         gas_mqtt_publish_reading(reading.ppm, reading.mv, alarm);
+        gas_mqtt_publish_air_quality(air.co2_ppm, air.mv, poor_air);
 
         if (alarm) {
             ESP_LOGW(TAG, "!!! GAS ALARM !!! ~%d ppm (raw %u mV)",
@@ -89,6 +95,14 @@ void app_main(void)
         } else {
             ESP_LOGI(TAG, "OK: ~%d ppm (raw %u mV, threshold %d ppm)",
                      (int)reading.ppm, reading.mv, CONFIG_GAS_THRESHOLD_PPM);
+        }
+
+        if (poor_air) {
+            ESP_LOGW(TAG, "Air quality POOR: ~%d ppm CO2eq (raw %u mV)",
+                     (int)air.co2_ppm, air.mv);
+        } else {
+            ESP_LOGI(TAG, "Air quality OK: ~%d ppm CO2eq (raw %u mV)",
+                     (int)air.co2_ppm, air.mv);
         }
 
         vTaskDelay(pdMS_TO_TICKS(CONFIG_GAS_CHECK_PERIOD_MS));

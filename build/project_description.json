@@ -1,7 +1,7 @@
 {
     "version":            "1.2",
     "project_name":       "air_gas",
-    "project_version":    "159e141-dirty",
+    "project_version":    "2a2579e-dirty",
     "project_path":       "D:/Espressif/frameworks/air_gas",
     "idf_path":           "D:/Espressif/frameworks/esp-idf-v5.5.5",
     "build_dir":          "D:/Espressif/frameworks/air_gas/build",
@@ -1240,7 +1240,7 @@
             "managed_reqs": [],
             "managed_priv_reqs": [],
             "file": "D:/Espressif/frameworks/air_gas/build/esp-idf/main/libmain.a",
-            "sources": [ "D:/Espressif/frameworks/air_gas/main/gas_main.c", "D:/Espressif/frameworks/air_gas/main/gas_sensor.c", "D:/Espressif/frameworks/air_gas/main/gas_network.c", "D:/Espressif/frameworks/air_gas/main/gas_discord.c", "D:/Espressif/frameworks/air_gas/main/gas_led.c", "D:/Espressif/frameworks/air_gas/main/gas_mqtt.c" ],
+            "sources": [ "D:/Espressif/frameworks/air_gas/main/gas_main.c", "D:/Espressif/frameworks/air_gas/main/gas_sensor.c", "D:/Espressif/frameworks/air_gas/main/air_sensor.c", "D:/Espressif/frameworks/air_gas/main/gas_network.c", "D:/Espressif/frameworks/air_gas/main/gas_discord.c", "D:/Espressif/frameworks/air_gas/main/gas_led.c", "D:/Espressif/frameworks/air_gas/main/gas_mqtt.c" ],
             "include_dirs": [ "." ]
         },
         "mbedtls": {

@@ -95,6 +95,66 @@ menu "Gas Monitor"
             (e.g. the LAN IP of the machine running the Node-RED + Mosquitto
             docker-compose stack). Leave empty to disable MQTT publishing.
             Readings are published to "airgas/<device>/reading" and alarms
-            to "airgas/<device>/alarm".
+            to "airgas/<device>/alarm". Also used by the MQ-135 air quality
+            sensor below, publishing to "airquality/<device>/reading".
+
+    menu "MQ-135 Air Quality Sensor"
+
+        config AQ_ENABLE
+            bool "Enable MQ-135 air quality sensor"
+            default y
+            help
+                MQ-135 is a second, independent gas sensor (CO2-equivalent /
+                general air quality) wired to its own ADC pin, separate from
+                the MQ-2 gas-leak sensor above.
+
+        config AQ_ADC_PIN
+            int "MQ-135 ADC pin (GPIO number, 0-39 for ADC1)"
+            depends on AQ_ENABLE
+            range 0 39
+            default 39
+
+        config AQ_ADC_CHANNEL
+            int "MQ-135 ADC channel (0-7, must match ADC pin)"
+            depends on AQ_ENABLE
+            range 0 7
+            default 3
+            help
+                Default (channel 3) corresponds to GPIO39 (ADC1_CH3) on the
+                standard ESP32.
+
+        config AQ_SENSOR_VCC_MV
+            int "MQ-135 sensor supply voltage VCC (mV)"
+            depends on AQ_ENABLE
+            range 4500 5500
+            default 5000
+
+        config AQ_LOAD_RESISTOR_OHM
+            int "MQ-135 module load resistor RL (ohm)"
+            depends on AQ_ENABLE
+            range 1000 22000
+            default 20000
+            help
+                Check your specific module's schematic/silkscreen; 20k ohm
+                is common on MQ-135 breakout boards but varies by supplier.
+
+        config AQ_ADC_DIVIDER_PERCENT
+            int "MQ-135 AOUT voltage divider ratio (percent reaching the ADC pin)"
+            depends on AQ_ENABLE
+            range 20 100
+            default 100
+
+        config AQ_THRESHOLD_PPM
+            int "Poor air quality threshold (ppm, estimated CO2-equivalent)"
+            depends on AQ_ENABLE
+            range 500 5000
+            default 1500
+            help
+                Indoor CO2 above roughly 1000-1500ppm is commonly considered
+                a sign of poor ventilation (ASHRAE guidance); above ~2000ppm
+                is considered poor. This is an uncalibrated-grade estimate,
+                not a certified air-quality measurement.
+
+    endmenu
 
 endmenu

@@ -10,6 +10,8 @@ ngưỡng.
 - **Ước tính nồng độ LPG (ppm)** từ đường cong Rs/Ro trong datasheet MQ-2, có tự hiệu
   chuẩn Ro (lưu vào NVS, chỉ chạy 1 lần ở lần boot đầu). So ngưỡng cảnh báo theo ppm thay
   vì mV thô.
+- **Cảm biến chất lượng không khí MQ-135** (độc lập với MQ-2 ở trên) — ước tính CO2 tương
+  đương (ppm), publish riêng, dùng chung cơ chế hiệu chuẩn Ro/NVS.
 - Kết nối Wi-Fi (chỉ 2.4GHz), tự kết nối lại nếu bị rớt sóng.
 - Gửi cảnh báo tới kênh Discord qua webhook khi vượt ngưỡng, có cooldown giữa các lần gửi
   để tránh spam.
@@ -24,21 +26,33 @@ ngưỡng.
 ## Phần cứng
 
 - Board ESP32 (đã build/test trên ESP32 dòng gốc, ESP-IDF v5.5.5).
-- Cảm biến khí gas analog, module ra chân `AOUT` dạng analog 0–5V (ví dụ MQ-2, MQ-135,
-  MQ-6...).
-- Nguồn 5V cho cảm biến (hầu hết module MQ-x cần 5V để đốt nóng dây may-so bên trong,
-  cấp 3.3V sẽ không đủ để cảm biến hoạt động chính xác).
+- Cảm biến khí gas MQ-2 (phát hiện rò gas), module ra chân `AOUT` dạng analog 0–5V.
+- Cảm biến chất lượng không khí MQ-135 (CO2 tương đương), cùng dạng module `AOUT` 0–5V.
+- Nguồn 5V cho cả 2 cảm biến (module MQ-x cần 5V để đốt nóng dây may-so bên trong, cấp
+  3.3V sẽ không đủ để cảm biến hoạt động chính xác).
 - 1 LED cảnh báo (LED rời + điện trở hạn dòng ~220–330Ω, hoặc dùng LED onboard có sẵn
   trên board DevKit nếu có).
 
-### Sơ đồ kết nối (ESP32 ⟷ cảm biến gas MQ-x)
+### Sơ đồ kết nối (ESP32 ⟷ MQ-2 + MQ-135)
 
-| Cảm biến MQ-x | ESP32 | Ghi chú |
+| Cảm biến MQ-2 (gas leak) | ESP32 | Ghi chú |
 |---|---|---|
 | `VCC` | `5V` (chân VIN/5V trên board) | Cấp nguồn cho bộ đốt của cảm biến |
 | `GND` | `GND` | Nối đất chung |
 | `AOUT` | `GPIO36` (ADC1_CH0, mặc định) | Tín hiệu analog, đổi được qua menuconfig |
 | `DOUT` | không dùng | Firmware chỉ đọc ngưỡng qua ADC (`AOUT`), không dùng ngưỡng phần cứng trên `DOUT` |
+
+| Cảm biến MQ-135 (air quality) | ESP32 | Ghi chú |
+|---|---|---|
+| `VCC` | `5V` | Chung nguồn 5V với MQ-2 (đảm bảo nguồn đủ dòng cho cả 2 bộ đốt) |
+| `GND` | `GND` | Nối đất chung |
+| `AOUT` | `GPIO39` (ADC1_CH3, mặc định) | Tín hiệu analog, đổi được qua menuconfig (`AQ_ADC_PIN`/`AQ_ADC_CHANNEL`) |
+| `DOUT` | không dùng | |
+
+⚠️ 2 cảm biến dùng chung nguồn 5V — kiểm tra bộ nguồn/cổng USB cấp đủ dòng (mỗi MQ-x
+tiêu thụ ~150mA khi đốt nóng, tổng ~300mA cho cả 2, cộng thêm ESP32). Nếu dùng chung cổng
+USB máy tính để cấp nguồn khi test, một số cổng yếu dòng có thể không đủ — nên dùng
+adapter 5V/1A trở lên khi chạy thật.
 
 | LED cảnh báo | ESP32 | Ghi chú |
 |---|---|---|
@@ -77,7 +91,8 @@ chân khác.
 | File | Vai trò |
 |---|---|
 | `main/gas_main.c` | Vòng lặp chính: đọc cảm biến, kiểm tra ngưỡng, điều phối cooldown |
-| `main/gas_sensor.c/.h` | Khởi tạo & đọc ADC (adc_oneshot + adc_cali) |
+| `main/gas_sensor.c/.h` | Cảm biến MQ-2 (gas leak): khởi tạo ADC1 dùng chung + hiệu chuẩn/đọc ppm LPG |
+| `main/air_sensor.c/.h` | Cảm biến MQ-135 (air quality): đọc kênh ADC1 riêng, hiệu chuẩn/đọc CO2-tương đương |
 | `main/gas_network.c/.h` | Kết nối Wi-Fi STA, tự reconnect khi rớt sóng |
 | `main/gas_discord.c/.h` | Gửi cảnh báo qua Discord webhook (HTTP POST JSON) |
 | `main/gas_led.c/.h` | Điều khiển đèn LED cảnh báo cục bộ qua GPIO |
@@ -109,7 +124,14 @@ Vào mục **Gas Monitor** và điền:
 - **Device name**: tên hiển thị trong tin nhắn Discord.
 - **Alarm LED GPIO pin**: chân GPIO điều khiển đèn cảnh báo (mặc định GPIO2).
 - **MQTT broker URI**: địa chỉ broker MQTT dạng `mqtt://<IP-LAN-máy-chủ>:1883`. Để trống
-  sẽ tắt tính năng publish MQTT.
+  sẽ tắt tính năng publish MQTT (áp dụng cho cả MQ-2 lẫn MQ-135).
+- **MQ-135 Air Quality Sensor** (menu con riêng):
+  - **Enable MQ-135 air quality sensor**: bật/tắt cảm biến thứ 2 (mặc định bật).
+  - **MQ-135 ADC pin / ADC channel**: chân đọc AOUT (mặc định GPIO39 / ADC1_CH3).
+  - **MQ-135 sensor supply voltage VCC / load resistor RL / voltage divider ratio**:
+    tương tự các tham số MQ-2, dùng để tính Rs chính xác cho MQ-135.
+  - **Poor air quality threshold (ppm)**: ngưỡng cảnh báo chất lượng không khí kém, theo
+    CO2 tương đương (mặc định 1500ppm).
 
 Lưu (phím `S`) rồi thoát (`Q`).
 
@@ -149,6 +171,15 @@ theo nồng độ khí**, không tuyến tính. Firmware quy đổi theo các b�
   Nhớ đảm bảo không khí xung quanh cảm biến thực sự sạch trong 5 giây đầu sau khi cấp
   nguồn.
 
+Cảm biến MQ-135 (air quality) dùng **cùng cơ chế** (đọc AOUT → tính Rs → hiệu chuẩn Ro
+lưu NVS namespace riêng `aq_cal` → quy ra CO2 tương đương qua công thức
+`ppm = 116.6 * (Rs/Ro) ^ -2.769`), chỉ khác ở điểm mốc hiệu chuẩn: vì không khí thường
+(kể cả ngoài trời) luôn có sẵn CO2 nền ~400ppm chứ không phải 0, nên lần boot đầu firmware
+giả định môi trường đang ở mức nền 400ppm (không khí thoáng bình thường) thay vì "sạch
+tuyệt đối" như MQ-2. Muốn hiệu chuẩn lại MQ-135 độc lập với MQ-2: cũng dùng
+`idf.py erase-flash && idf.py flash` (erase-flash xóa cả 2 namespace `gas_cal` và
+`aq_cal` cùng lúc, không tách được).
+
 ## Node-RED + MQTT broker (docker)
 
 Repo có sẵn stack Docker riêng ở [`../node-red/`](../node-red/) chạy **Mosquitto** (MQTT
@@ -172,13 +203,22 @@ docker compose up -d
 ### Dashboard trực quan
 
 Đã cài sẵn **Node-RED Dashboard 2.0** (`@flowfuse/node-red-dashboard`) trong container.
-Truy cập tại: **http://localhost:1880/dashboard**
+Dashboard có **2 tab riêng trong sidebar điều hướng**:
 
-Trang "Gas Monitor" hiển thị:
-- **Gauge mV** — kim đồng hồ điện áp đọc được realtime, tô màu theo vùng (xanh/vàng/đỏ
-  quanh ngưỡng cảnh báo).
-- **Biểu đồ lịch sử** — đường mV theo thời gian, tự xóa dữ liệu cũ hơn 1 giờ.
-- **Trạng thái** — chữ "🟢 OK" / "🔴 GAS ALARM" cập nhật theo mỗi lần đọc.
+**Tab "Gas Monitor"** — http://localhost:1880/dashboard/gas
+- Group "Trạng thái hiện tại": gauge ppm (kim đồng hồ, tô màu xanh/vàng/đỏ quanh ngưỡng),
+  badge trạng thái (nền đỏ "GAS ALARM" / nền xanh "OK"), dòng "Cập nhật lúc..." (biết
+  ngay nếu dữ liệu bị đứng), badge Online/Offline của thiết bị (dựa trên MQTT
+  status + Last Will).
+- Group "Lịch sử": biểu đồ đường ppm theo thời gian, full-width, tự xóa dữ liệu cũ hơn
+  1 giờ.
+
+**Tab "Air Quality"** — http://localhost:1880/dashboard/air-quality
+- Bố cục tương tự: gauge CO2-tương đương (ppm), badge "KHÔNG KHÍ TỐT"/"KHÔNG KHÍ KÉM",
+  timestamp cập nhật, biểu đồ lịch sử riêng.
+
+Truy cập trang chủ dashboard tại http://localhost:1880/dashboard sẽ thấy menu điều hướng
+để chuyển giữa 2 tab.
 
 Nếu cần cài lại package dashboard sau khi xóa volume `node_red_data`, chạy:
 ```
@@ -192,6 +232,8 @@ docker restart node-red
 |---|---|---|
 | `airgas/<device>/reading` | Mỗi chu kỳ đọc cảm biến (`GAS_CHECK_PERIOD_MS`) | `{"ppm":420,"mv":650,"threshold":1000,"alarm":false}` |
 | `airgas/<device>/alarm` | Khi vượt ngưỡng, theo cùng cooldown với Discord | `{"ppm":1250,"mv":950,"threshold":1000,"device":"Gas-Monitor-01"}` |
+| `airgas/<device>/status` | Khi kết nối MQTT (retained "online"), tự động "offline" (retained, qua LWT) nếu mất kết nối đột ngột | `online` hoặc `offline` (plain text, không phải JSON) |
+| `airquality/<device>/reading` | Mỗi chu kỳ đọc cảm biến MQ-135 | `{"co2_ppm":650,"mv":720,"threshold":1500,"poor":false}` |
 
 `<device>` là giá trị `GAS_DEVICE_NAME` cấu hình trong menuconfig.
 
@@ -238,11 +280,18 @@ thức Rs tỷ lệ nghịch, điện áp cao giả lập vẫn sẽ đẩy ppm 
 
 ## Hạn chế hiện tại
 
-- Chỉ hỗ trợ 1 cảm biến analog duy nhất, chưa có cảm biến nhiệt độ/độ ẩm hay loại khác.
-- Ước tính ppm chỉ tính cho LPG, dùng hằng số cố định trong code — chưa hỗ trợ chọn loại
-  khí khác hay nhập lại hệ số đường cong.
-- Hiệu chuẩn Ro tin tưởng hoàn toàn vào giả định "không khí sạch" ở lần boot đầu, không
-  có cách nào để firmware tự biết môi trường lúc đó có thật sự sạch hay không.
+- Chưa có cảm biến nhiệt độ/độ ẩm để bù trừ đường cong Rs/Ro (cả MQ-2 lẫn MQ-135 đều bị
+  ảnh hưởng bởi nhiệt độ/độ ẩm môi trường theo datasheet).
+- Ước tính ppm chỉ tính 1 loại khí cố định mỗi cảm biến (LPG cho MQ-2, CO2-tương đương
+  cho MQ-135), dùng hằng số cố định trong code — chưa hỗ trợ chọn loại khí khác hay nhập
+  lại hệ số đường cong.
+- Hiệu chuẩn Ro (cả 2 cảm biến) tin tưởng hoàn toàn vào giả định về môi trường ở lần boot
+  đầu (không khí sạch cho MQ-2, mức CO2 nền ~400ppm cho MQ-135), không có cách nào để
+  firmware tự biết môi trường lúc đó có đúng như giả định hay không — không có nút/lệnh
+  hiệu chuẩn lại thủ công, chỉ có thể ép qua `idf.py erase-flash`.
+- MQ-2 và MQ-135 dùng chung 1 ADC unit (`ADC_UNIT_1`) qua `gas_sensor_get_adc_unit()` —
+  `gas_sensor_init()` (MQ-2) phải chạy trước `air_sensor_init()` (MQ-135), thứ tự này
+  không được kiểm tra/báo lỗi rõ ràng nếu bị đổi nhầm trong `gas_main.c`.
 - Đèn LED chỉ có 2 trạng thái sáng/tắt, chưa có nháy/còi để phân biệt mức độ nghiêm
   trọng hay báo trạng thái mất kết nối Wi-Fi.
 - ADC đọc 1 mẫu/chu kỳ, chưa lọc trung bình để giảm nhiễu tức thời.

@@ -5443,12 +5443,109 @@
             {
                 "children": [],
                 "depends_on": null,
-                "help": "Address of the Mosquitto/MQTT broker reachable from the ESP32\n(e.g. the LAN IP of the machine running the Node-RED + Mosquitto\ndocker-compose stack). Leave empty to disable MQTT publishing.\nReadings are published to \"airgas/<device>/reading\" and alarms\nto \"airgas/<device>/alarm\".",
+                "help": "Address of the Mosquitto/MQTT broker reachable from the ESP32\n(e.g. the LAN IP of the machine running the Node-RED + Mosquitto\ndocker-compose stack). Leave empty to disable MQTT publishing.\nReadings are published to \"airgas/<device>/reading\" and alarms\nto \"airgas/<device>/alarm\". Also used by the MQ-135 air quality\nsensor below, publishing to \"airquality/<device>/reading\".",
                 "id": "GAS_MQTT_BROKER_URI",
                 "name": "GAS_MQTT_BROKER_URI",
                 "range": null,
                 "title": "MQTT broker URI (mqtt://host:port), empty to disable",
                 "type": "string"
+            },
+            {
+                "children": [
+                    {
+                        "children": [
+                            {
+                                "children": [],
+                                "depends_on": "AQ_ENABLE",
+                                "help": null,
+                                "id": "AQ_ADC_PIN",
+                                "name": "AQ_ADC_PIN",
+                                "range": [
+                                    0,
+                                    39
+                                ],
+                                "title": "MQ-135 ADC pin (GPIO number, 0-39 for ADC1)",
+                                "type": "int"
+                            },
+                            {
+                                "children": [],
+                                "depends_on": "AQ_ENABLE",
+                                "help": "Default (channel 3) corresponds to GPIO39 (ADC1_CH3) on the\nstandard ESP32.",
+                                "id": "AQ_ADC_CHANNEL",
+                                "name": "AQ_ADC_CHANNEL",
+                                "range": [
+                                    0,
+                                    7
+                                ],
+                                "title": "MQ-135 ADC channel (0-7, must match ADC pin)",
+                                "type": "int"
+                            },
+                            {
+                                "children": [],
+                                "depends_on": "AQ_ENABLE",
+                                "help": null,
+                                "id": "AQ_SENSOR_VCC_MV",
+                                "name": "AQ_SENSOR_VCC_MV",
+                                "range": [
+                                    4500,
+                                    5500
+                                ],
+                                "title": "MQ-135 sensor supply voltage VCC (mV)",
+                                "type": "int"
+                            },
+                            {
+                                "children": [],
+                                "depends_on": "AQ_ENABLE",
+                                "help": "Check your specific module's schematic/silkscreen; 20k ohm\nis common on MQ-135 breakout boards but varies by supplier.",
+                                "id": "AQ_LOAD_RESISTOR_OHM",
+                                "name": "AQ_LOAD_RESISTOR_OHM",
+                                "range": [
+                                    1000,
+                                    22000
+                                ],
+                                "title": "MQ-135 module load resistor RL (ohm)",
+                                "type": "int"
+                            },
+                            {
+                                "children": [],
+                                "depends_on": "AQ_ENABLE",
+                                "help": null,
+                                "id": "AQ_ADC_DIVIDER_PERCENT",
+                                "name": "AQ_ADC_DIVIDER_PERCENT",
+                                "range": [
+                                    20,
+                                    100
+                                ],
+                                "title": "MQ-135 AOUT voltage divider ratio (percent reaching the ADC pin)",
+                                "type": "int"
+                            },
+                            {
+                                "children": [],
+                                "depends_on": "AQ_ENABLE",
+                                "help": "Indoor CO2 above roughly 1000-1500ppm is commonly considered\na sign of poor ventilation (ASHRAE guidance); above ~2000ppm\nis considered poor. This is an uncalibrated-grade estimate,\nnot a certified air-quality measurement.",
+                                "id": "AQ_THRESHOLD_PPM",
+                                "name": "AQ_THRESHOLD_PPM",
+                                "range": [
+                                    500,
+                                    5000
+                                ],
+                                "title": "Poor air quality threshold (ppm, estimated CO2-equivalent)",
+                                "type": "int"
+                            }
+                        ],
+                        "depends_on": null,
+                        "help": "MQ-135 is a second, independent gas sensor (CO2-equivalent /\ngeneral air quality) wired to its own ADC pin, separate from\nthe MQ-2 gas-leak sensor above.",
+                        "id": "AQ_ENABLE",
+                        "name": "AQ_ENABLE",
+                        "range": null,
+                        "title": "Enable MQ-135 air quality sensor",
+                        "type": "bool"
+                    }
+                ],
+                "depends_on": null,
+                "id": "gas-monitor-mq-135-air-quality-sensor",
+                "title": "MQ-135 Air Quality Sensor",
+                "type": "menu"
             }
         ],
         "depends_on": null,
