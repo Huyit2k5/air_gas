@@ -1,7 +1,7 @@
 {
     "version":            "1.2",
     "project_name":       "air_gas",
-    "project_version":    "1",
+    "project_version":    "ca28353-dirty",
     "project_path":       "D:/Espressif/frameworks/air_gas",
     "idf_path":           "D:/Espressif/frameworks/esp-idf-v5.5.5",
     "build_dir":          "D:/Espressif/frameworks/air_gas/build",
