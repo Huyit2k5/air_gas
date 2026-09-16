@@ -1,0 +1,2 @@
+Command: cmake -G Ninja -DPYTHON_DEPS_CHECKED=1 -DPYTHON=D:\Espressif\python_env\idf5.5_py3.11_env\Scripts\python.exe -DESP_PLATFORM=1 -DIDF_TARGET=esp32 -DCCACHE_ENABLE=1 D:\Espressif\frameworks\air_gas
+warning: default value 36 on GAS_ADC_PIN (defined at D:/Espressif/frameworks/air_gas/main/Kconfig.projbuild:3) clamped to 35 due to being outside the active range ([0, 35])

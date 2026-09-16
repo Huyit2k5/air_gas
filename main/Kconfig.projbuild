@@ -1,0 +1,41 @@
+menu "Gas Monitor"
+
+    config GAS_ADC_PIN
+        int "Gas sensor ADC pin (GPIO number, 0-35 for ADC1)"
+        range 0 35
+        default 36
+
+    config GAS_ADC_CHANNEL
+        int "ADC channel (0-7, must match ADC pin)"
+        range 0 7
+        default 0
+
+    config GAS_THRESHOLD_MV
+        int "Gas alarm threshold (mV)"
+        range 100 1500
+        default 800
+
+    config GAS_CHECK_PERIOD_MS
+        int "Sensor check period (ms)"
+        range 500 60000
+        default 1000
+
+    config GAS_ALARM_COOLDOWN_S
+        int "Cooldown between alarm sends (s)"
+        range 5 600
+        default 60
+
+    config GAS_WIFI_SSID
+        string "Wi-Fi SSID"
+
+    config GAS_WIFI_PASSWORD
+        string "Wi-Fi password"
+
+    config GAS_DISCORD_WEBHOOK
+        string "Discord webhook URL (https://discord.com/api/webhooks/...)"
+
+    config GAS_DEVICE_NAME
+        string "Device name (shown in Discord message)"
+        default "Gas-Monitor-01"
+
+endmenu
