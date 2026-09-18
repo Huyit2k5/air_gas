@@ -1,0 +1,109 @@
+{
+  "version": 1,
+  "minor_version": 1,
+  "key": "auth",
+  "data": {
+    "users": [
+      {
+        "id": "d3d4a4ba51d84db2971319b5d96c76ac",
+        "group_ids": [
+          "system-read-only"
+        ],
+        "is_owner": false,
+        "is_active": true,
+        "name": "Home Assistant Content",
+        "system_generated": true,
+        "local_only": false
+      },
+      {
+        "id": "2698ba1de0da43ca8537c0aecf055e58",
+        "group_ids": [
+          "system-admin"
+        ],
+        "is_owner": true,
+        "is_active": true,
+        "name": "Thanh Huy",
+        "system_generated": false,
+        "local_only": false
+      }
+    ],
+    "groups": [
+      {
+        "id": "system-admin",
+        "name": "Administrators"
+      },
+      {
+        "id": "system-users",
+        "name": "Users"
+      },
+      {
+        "id": "system-read-only",
+        "name": "Read Only"
+      }
+    ],
+    "credentials": [
+      {
+        "id": "ad0588fc486c4ba693fde619bbe1904b",
+        "user_id": "2698ba1de0da43ca8537c0aecf055e58",
+        "auth_provider_type": "homeassistant",
+        "auth_provider_id": null,
+        "data": {
+          "username": "thanhhuy114"
+        }
+      }
+    ],
+    "refresh_tokens": [
+      {
+        "id": "bfd2b46f46d449e8a06fe9560131080a",
+        "user_id": "d3d4a4ba51d84db2971319b5d96c76ac",
+        "client_id": null,
+        "client_name": null,
+        "client_icon": null,
+        "token_type": "system",
+        "created_at": "2026-09-16T12:57:31.143311+00:00",
+        "access_token_expiration": 1800.0,
+        "token": "f619553ee67839f9e9eab6c368b5583ec89b1846dbadcc2ec13b8d1eab256273c94edae046fa555d7750ce4c7c904ca8ba722a25de1cbbe646dcf9cfdf067557",
+        "jwt_key": "b5605e16f9c08525c9d91facb4bb50e89c57bd9cabb346dc36b3f19ed96a5d04a4b455a8c10a11c257dc20a3eb9941225f89b9d2b7b3d2584ebf5eb5266f9516",
+        "last_used_at": null,
+        "last_used_ip": null,
+        "expire_at": null,
+        "credential_id": null,
+        "version": "2026.9.2"
+      },
+      {
+        "id": "aae70d78ee954572ac4444bbe8f378cc",
+        "user_id": "2698ba1de0da43ca8537c0aecf055e58",
+        "client_id": "http://localhost:8123/",
+        "client_name": null,
+        "client_icon": null,
+        "token_type": "normal",
+        "created_at": "2026-09-16T13:05:59.192493+00:00",
+        "access_token_expiration": 1800.0,
+        "token": "5035d667f9dd066c5fd7911c3a876cfe7d7f325eeb6601a04b16fb0ea9a742a6b0803b511715d8e9c2459f00b55e1b82fe6c7063d937696df90c9e811b693ef3",
+        "jwt_key": "b25710cb4ed4f01ba7a8d0c6cbcc515fc33b00e3d710a9a866e3089d1167b010c2392b35c40f093cc046888af668bae9510659ec4f61d4ea616267a146dd422d",
+        "last_used_at": "2026-09-17T00:58:06.201644+00:00",
+        "last_used_ip": "172.22.0.1",
+        "expire_at": 1797382686.201644,
+        "credential_id": "ad0588fc486c4ba693fde619bbe1904b",
+        "version": "2026.9.2"
+      },
+      {
+        "id": "4ad40657570649d5b0d08c4731664e76",
+        "user_id": "2698ba1de0da43ca8537c0aecf055e58",
+        "client_id": "https://home-assistant.io/android",
+        "client_name": null,
+        "client_icon": null,
+        "token_type": "normal",
+        "created_at": "2026-09-17T01:00:29.665766+00:00",
+        "access_token_expiration": 1800.0,
+        "token": "6d34f94450f8df43a4ce9d79ab85ed30435183663cac410b3f9f10b14aab4a54099981824615d216f7e2b8f6f18c2dd541584a18d4630be53f62a191079a2627",
+        "jwt_key": "e1d460e5bfc06eb00815b967fd2bbb86d9224444c44aed168404e60240931987524a351c146d2ade5917998ee5240754f86b00ed87ed853d3342fdd794ba0255",
+        "last_used_at": "2026-09-17T01:00:29.666120+00:00",
+        "last_used_ip": "172.22.0.1",
+        "expire_at": 1797382829.66612,
+        "credential_id": "ad0588fc486c4ba693fde619bbe1904b",
+        "version": "2026.9.2"
+      }
+    ]
+  }
+}

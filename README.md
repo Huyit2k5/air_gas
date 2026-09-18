@@ -182,11 +182,11 @@ tuyệt đối" như MQ-2. Muốn hiệu chuẩn lại MQ-135 độc lập với
 
 ## Node-RED + MQTT broker (docker)
 
-Repo có sẵn stack Docker riêng ở [`../node-red/`](../node-red/) chạy **Mosquitto** (MQTT
-broker, port 1883) và **Node-RED** (port 1880):
+Repo có sẵn stack Docker riêng ở [`node-red/`](node-red/) chạy **Mosquitto** (MQTT
+broker, port 1883), **Node-RED** (port 1880), và **Home Assistant** (port 8123):
 
 ```
-cd ../node-red
+cd node-red
 docker compose up -d
 ```
 
@@ -225,6 +225,59 @@ Nếu cần cài lại package dashboard sau khi xóa volume `node_red_data`, ch
 docker exec -w /data node-red npm install @flowfuse/node-red-dashboard
 docker restart node-red
 ```
+
+### Home Assistant
+
+Chạy như 1 lựa chọn giám sát **song song** với Node-RED Dashboard (không thay thế, cả 2
+đều đọc chung dữ liệu từ Mosquitto, dùng cái nào tùy bạn). Kiểu cài đặt: **Home Assistant
+Container** (chỉ HA Core chạy trong Docker, không phải "Home Assistant OS" — do đó
+**không có** Add-on Store, không tự OTA update toàn hệ thống; đổi lại nhẹ và chạy chung
+máy tính với các service khác trong cùng `docker-compose.yml`).
+
+**Cấu hình đã có sẵn** trong `node-red/homeassistant/config/configuration.yaml` — khai
+báo 7 entity MQTT theo dạng YAML tĩnh (không cần MQTT Discovery từ firmware):
+
+| Entity | Nguồn | Loại |
+|---|---|---|
+| Gas ppm | `airgas/<device>/reading` → `ppm` | sensor |
+| Gas raw mV | `airgas/<device>/reading` → `mv` | sensor (diagnostic) |
+| Gas Alarm | `airgas/<device>/reading` → `alarm` | binary_sensor (gas) |
+| Air Quality CO2eq | `airquality/<device>/reading` → `co2_ppm` | sensor |
+| Air Quality raw mV | `airquality/<device>/reading` → `mv` | sensor (diagnostic) |
+| Poor Air Quality | `airquality/<device>/reading` → `poor` | binary_sensor (problem) |
+| Gas Monitor Device Online | `airgas/<device>/status` (MQTT LWT) | binary_sensor (connectivity) |
+
+#### Setup lần đầu (thủ công, 1 lần)
+
+1. Mở **http://localhost:8123**, tạo tài khoản qua giao diện (tên/username/password —
+   không có sẵn, tự đặt).
+2. **Settings → Devices & Services → Add Integration → MQTT** → nhập host `mosquitto`,
+   port `1883` (không cần user/pass, Mosquitto đang cho phép anonymous trong LAN) →
+   Submit.
+3. Xong bước 2, cả 7 entity ở bảng trên **tự xuất hiện** trong dashboard "Overview" mặc
+   định (mục Favorites) — không cần tự thêm card thủ công.
+
+#### Truy cập từ điện thoại
+
+Yêu cầu điện thoại **cùng mạng Wi-Fi** với máy chạy Docker. Dùng địa chỉ
+`http://<IP-LAN-máy-chủ>:8123` (không dùng `localhost` — điện thoại là thiết bị khác,
+không hiểu `localhost` là máy tính bạn). IP này là **IP động theo DHCP**, có thể đổi mỗi
+lần kết nối lại mạng — kiểm tra lại bằng `ipconfig` nếu không vào được. Khuyên đặt IP tĩnh
+cho máy chủ qua router (DHCP reservation theo MAC) để khỏi phải tra lại IP mỗi lần.
+
+Nếu điện thoại không vào được dù đúng IP: kiểm tra **Windows Firewall** trên máy chủ có
+chặn cổng 8123 không (thêm inbound rule cho phép TCP 8123, profile Private).
+
+Muốn cài app chính thức: tải app **"Home Assistant"** trên App Store/Google Play, nhập
+đúng địa chỉ trên để đăng nhập — có thêm tiện ích nhận thông báo đẩy.
+
+#### Truy cập từ xa (ngoài mạng nhà, tùy chọn, chưa cấu hình)
+
+Cách hiện tại chỉ dùng được trong cùng mạng LAN. Muốn xem được từ Internet (4G/5G, không
+cùng Wi-Fi), cần thêm 1 trong: **Nabu Casa Cloud** (dịch vụ chính thức, có phí ~$6.5/
+tháng, dễ cấu hình nhất, không cần mở port router) hoặc tự cấu hình port forwarding +
+domain/dynamic DNS + HTTPS (phức tạp hơn, tự chịu trách nhiệm bảo mật). Chưa triển khai
+phần này trong project.
 
 ### Cấu trúc topic MQTT
 

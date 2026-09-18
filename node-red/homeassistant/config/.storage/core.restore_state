@@ -1,0 +1,123 @@
+{
+  "version": 1,
+  "minor_version": 1,
+  "key": "core.restore_state",
+  "data": [
+    {
+      "state": {"entity_id":"conversation.home_assistant","state":"unknown","attributes":{"friendly_name":"Home Assistant","supported_features":1},"last_changed":"2026-09-18T09:39:11.206216+00:00","last_reported":"2026-09-18T09:39:11.206216+00:00","last_updated":"2026-09-18T09:39:11.206216+00:00","context":{"id":"01M2SY4PQ6JK7K0FJN94051E78","parent_id":null,"user_id":null}},
+      "extra_data": null,
+      "last_seen": "2026-09-18T09:39:14.763546+00:00"
+    },
+    {
+      "state": {"entity_id":"event.backup_automatic_backup","state":"unknown","attributes":{"event_types":["completed","failed","in_progress"],"event_type":null,"friendly_name":"Backup Automatic backup"},"last_changed":"2026-09-18T09:39:11.302441+00:00","last_reported":"2026-09-18T09:39:11.302441+00:00","last_updated":"2026-09-18T09:39:11.302441+00:00","context":{"id":"01M2SY4PT6S0MQMN3HHX1Z477G","parent_id":null,"user_id":null}},
+      "extra_data": {
+        "last_event_type": null,
+        "last_event_attributes": null
+      },
+      "last_seen": "2026-09-18T09:39:14.763546+00:00"
+    },
+    {
+      "state": {"entity_id":"person.thanh_huy","state":"not_home","attributes":{"editable":true,"id":"thanh_huy","device_trackers":["device_tracker.23129raa4g"],"in_zones":[],"latitude":10.8217902,"longitude":106.6245924,"gps_accuracy":13.0,"source":"person.thanh_huy","user_id":"2698ba1de0da43ca8537c0aecf055e58","friendly_name":"Thanh Huy"},"last_changed":"2026-09-18T09:39:12.341563+00:00","last_reported":"2026-09-18T09:39:12.341563+00:00","last_updated":"2026-09-18T09:39:12.341563+00:00","context":{"id":"01M2SY4QTNSNDV3RMA9WCQ533X","parent_id":null,"user_id":null}},
+      "extra_data": null,
+      "last_seen": "2026-09-18T09:39:14.763546+00:00"
+    },
+    {
+      "state": {"entity_id":"device_tracker.23129raa4g","state":"not_home","attributes":{"tracking_type":"position","in_zones":[],"source_type":"gps","latitude":10.8217902,"longitude":106.6245924,"gps_accuracy":13.0,"altitude":9.0,"course":0,"speed":0,"vertical_accuracy":1,"friendly_name":"23129RAA4G"},"last_changed":"2026-09-18T09:39:14.681890+00:00","last_reported":"2026-09-18T09:39:14.681890+00:00","last_updated":"2026-09-18T09:39:14.681890+00:00","context":{"id":"01M2SY4T3SZDP9HQWHE2Y11181","parent_id":null,"user_id":null}},
+      "extra_data": {
+        "data": {
+          "gps": [
+            10.8217902,
+            106.6245924
+          ],
+          "gps_accuracy": 13.0,
+          "speed": 0,
+          "altitude": 9.0,
+          "course": 0,
+          "vertical_accuracy": 1
+        }
+      },
+      "last_seen": "2026-09-18T09:39:14.763546+00:00"
+    },
+    {
+      "state": {"entity_id":"notify.23129raa4g","state":"unknown","attributes":{"friendly_name":"23129RAA4G","supported_features":1},"last_changed":"2026-09-18T09:39:14.682343+00:00","last_reported":"2026-09-18T09:39:14.682343+00:00","last_updated":"2026-09-18T09:39:14.682343+00:00","context":{"id":"01M2SY4T3TT0QC9SFMD5TA3KNK","parent_id":null,"user_id":null}},
+      "extra_data": null,
+      "last_seen": "2026-09-18T09:39:14.763546+00:00"
+    },
+    {
+      "state": {"entity_id":"sensor.23129raa4g_battery_level","state":"84","attributes":{"state_class":"measurement","unit_of_measurement":"%","device_class":"battery","icon":"mdi:battery-80","friendly_name":"23129RAA4G Battery level"},"last_changed":"2026-09-18T09:39:14.682896+00:00","last_reported":"2026-09-18T09:39:14.682896+00:00","last_updated":"2026-09-18T09:39:14.682896+00:00","context":{"id":"01M2SY4T3THDT4ZHEMMM6VWKF9","parent_id":null,"user_id":null}},
+      "extra_data": {
+        "native_value": 84,
+        "native_unit_of_measurement": "%"
+      },
+      "last_seen": "2026-09-18T09:39:14.763546+00:00"
+    },
+    {
+      "state": {"entity_id":"sensor.23129raa4g_battery_state","state":"discharging","attributes":{"options":["charging","discharging","full","not_charging"],"device_class":"enum","icon":"mdi:battery-minus","friendly_name":"23129RAA4G Battery state"},"last_changed":"2026-09-18T09:39:14.683095+00:00","last_reported":"2026-09-18T09:39:14.683095+00:00","last_updated":"2026-09-18T09:39:14.683095+00:00","context":{"id":"01M2SY4T3VFEK1GNFRMN2YZBN5","parent_id":null,"user_id":null}},
+      "extra_data": {
+        "native_value": "discharging",
+        "native_unit_of_measurement": null
+      },
+      "last_seen": "2026-09-18T09:39:14.763546+00:00"
+    },
+    {
+      "state": {"entity_id":"sensor.23129raa4g_charger_type","state":"none","attributes":{"options":["ac","usb","wireless","dock","none"],"device_class":"enum","icon":"mdi:battery","friendly_name":"23129RAA4G Charger type"},"last_changed":"2026-09-18T09:39:14.683276+00:00","last_reported":"2026-09-18T09:39:14.683276+00:00","last_updated":"2026-09-18T09:39:14.683276+00:00","context":{"id":"01M2SY4T3V41FEF01MQ6N0Y5CN","parent_id":null,"user_id":null}},
+      "extra_data": {
+        "native_value": "none",
+        "native_unit_of_measurement": null
+      },
+      "last_seen": "2026-09-18T09:39:14.763546+00:00"
+    },
+    {
+      "state": {"entity_id":"binary_sensor.gas_alarm","state":"unknown","attributes":{"device_class":"gas","friendly_name":"Gas Alarm"},"last_changed":"2026-09-18T09:39:14.715007+00:00","last_reported":"2026-09-18T09:39:14.715007+00:00","last_updated":"2026-09-18T09:39:14.715007+00:00","context":{"id":"01M2SY4T4VA18K33NSG7PXKBDV","parent_id":null,"user_id":null}},
+      "extra_data": null,
+      "last_seen": "2026-09-18T09:39:14.763546+00:00"
+    },
+    {
+      "state": {"entity_id":"binary_sensor.poor_air_quality","state":"unknown","attributes":{"device_class":"problem","friendly_name":"Poor Air Quality"},"last_changed":"2026-09-18T09:39:14.715065+00:00","last_reported":"2026-09-18T09:39:14.715065+00:00","last_updated":"2026-09-18T09:39:14.715065+00:00","context":{"id":"01M2SY4T4V0NKKTBSZ907GWZRK","parent_id":null,"user_id":null}},
+      "extra_data": null,
+      "last_seen": "2026-09-18T09:39:14.763546+00:00"
+    },
+    {
+      "state": {"entity_id":"binary_sensor.gas_monitor_device_online","state":"unknown","attributes":{"device_class":"connectivity","friendly_name":"Gas Monitor Device Online"},"last_changed":"2026-09-18T09:39:14.715088+00:00","last_reported":"2026-09-18T09:39:14.715088+00:00","last_updated":"2026-09-18T09:39:14.715088+00:00","context":{"id":"01M2SY4T4VF4CRTZ1TRNFTZH6D","parent_id":null,"user_id":null}},
+      "extra_data": null,
+      "last_seen": "2026-09-18T09:39:14.763546+00:00"
+    },
+    {
+      "state": {"entity_id":"sensor.gas_ppm","state":"unknown","attributes":{"unit_of_measurement":"ppm","icon":"mdi:gas-cylinder","friendly_name":"Gas ppm"},"last_changed":"2026-09-18T09:39:14.715142+00:00","last_reported":"2026-09-18T09:39:14.715142+00:00","last_updated":"2026-09-18T09:39:14.715142+00:00","context":{"id":"01M2SY4T4V9JW1W4SJ1J7T6C50","parent_id":null,"user_id":null}},
+      "extra_data": {
+        "native_value": null,
+        "native_unit_of_measurement": "ppm"
+      },
+      "last_seen": "2026-09-18T09:39:14.763546+00:00"
+    },
+    {
+      "state": {"entity_id":"sensor.gas_raw_mv","state":"unknown","attributes":{"unit_of_measurement":"mV","friendly_name":"Gas raw mV"},"last_changed":"2026-09-18T09:39:14.715235+00:00","last_reported":"2026-09-18T09:39:14.715235+00:00","last_updated":"2026-09-18T09:39:14.715235+00:00","context":{"id":"01M2SY4T4V0N2NK97JSW4BRWVJ","parent_id":null,"user_id":null}},
+      "extra_data": {
+        "native_value": null,
+        "native_unit_of_measurement": "mV"
+      },
+      "last_seen": "2026-09-18T09:39:14.763546+00:00"
+    },
+    {
+      "state": {"entity_id":"sensor.air_quality_co2eq","state":"unknown","attributes":{"unit_of_measurement":"ppm","device_class":"carbon_dioxide","icon":"mdi:molecule-co2","friendly_name":"Air Quality CO2eq"},"last_changed":"2026-09-18T09:39:14.715269+00:00","last_reported":"2026-09-18T09:39:14.715269+00:00","last_updated":"2026-09-18T09:39:14.715269+00:00","context":{"id":"01M2SY4T4VQN6MKDANEXH4CDQA","parent_id":null,"user_id":null}},
+      "extra_data": {
+        "native_value": null,
+        "native_unit_of_measurement": "ppm"
+      },
+      "last_seen": "2026-09-18T09:39:14.763546+00:00"
+    },
+    {
+      "state": {"entity_id":"sensor.air_quality_raw_mv","state":"unknown","attributes":{"unit_of_measurement":"mV","friendly_name":"Air Quality raw mV"},"last_changed":"2026-09-18T09:39:14.715290+00:00","last_reported":"2026-09-18T09:39:14.715290+00:00","last_updated":"2026-09-18T09:39:14.715290+00:00","context":{"id":"01M2SY4T4VF0MM820BF3EXWZMB","parent_id":null,"user_id":null}},
+      "extra_data": {
+        "native_value": null,
+        "native_unit_of_measurement": "mV"
+      },
+      "last_seen": "2026-09-18T09:39:14.763546+00:00"
+    },
+    {
+      "state": {"entity_id":"tts.google_translate_en_com","state":"unknown","attributes":{"friendly_name":"Google Translate en com"},"last_changed":"2026-09-18T09:39:14.743782+00:00","last_reported":"2026-09-18T09:39:14.743782+00:00","last_updated":"2026-09-18T09:39:14.743782+00:00","context":{"id":"01M2SY4T5QPS3AESSPE46QXGCX","parent_id":null,"user_id":null}},
+      "extra_data": null,
+      "last_seen": "2026-09-18T09:39:14.763546+00:00"
+    }
+  ]
+}

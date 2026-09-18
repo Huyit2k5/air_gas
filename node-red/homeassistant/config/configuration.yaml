@@ -1,0 +1,56 @@
+default_config:
+
+mqtt:
+  sensor:
+    - name: "Gas ppm"
+      unique_id: airgas_gas_ppm
+      state_topic: "airgas/Gas-Monitor-01/reading"
+      value_template: "{{ value_json.ppm }}"
+      unit_of_measurement: "ppm"
+      icon: mdi:gas-cylinder
+
+    - name: "Gas raw mV"
+      unique_id: airgas_gas_mv
+      state_topic: "airgas/Gas-Monitor-01/reading"
+      value_template: "{{ value_json.mv }}"
+      unit_of_measurement: "mV"
+      entity_category: diagnostic
+
+    - name: "Air Quality CO2eq"
+      unique_id: airgas_aq_co2
+      state_topic: "airquality/Gas-Monitor-01/reading"
+      value_template: "{{ value_json.co2_ppm }}"
+      unit_of_measurement: "ppm"
+      device_class: carbon_dioxide
+      icon: mdi:molecule-co2
+
+    - name: "Air Quality raw mV"
+      unique_id: airgas_aq_mv
+      state_topic: "airquality/Gas-Monitor-01/reading"
+      value_template: "{{ value_json.mv }}"
+      unit_of_measurement: "mV"
+      entity_category: diagnostic
+
+  binary_sensor:
+    - name: "Gas Alarm"
+      unique_id: airgas_gas_alarm
+      state_topic: "airgas/Gas-Monitor-01/reading"
+      value_template: "{{ value_json.alarm }}"
+      payload_on: "True"
+      payload_off: "False"
+      device_class: gas
+
+    - name: "Poor Air Quality"
+      unique_id: airgas_aq_poor
+      state_topic: "airquality/Gas-Monitor-01/reading"
+      value_template: "{{ value_json.poor }}"
+      payload_on: "True"
+      payload_off: "False"
+      device_class: problem
+
+    - name: "Gas Monitor Device Online"
+      unique_id: airgas_device_online
+      state_topic: "airgas/Gas-Monitor-01/status"
+      payload_on: "online"
+      payload_off: "offline"
+      device_class: connectivity

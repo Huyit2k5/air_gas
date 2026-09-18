@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "minor_version": 1,
+  "key": "frontend.system_data",
+  "data": {
+    "core": {
+      "onboarded_version": "2026.9.2",
+      "onboarded_date": "2026-09-16T13:04:43.515Z"
+    },
+    "home": {
+      "favorite_entities": [
+        "binary_sensor.gas_alarm",
+        "sensor.air_quality_co2eq",
+        "sensor.air_quality_raw_mv",
+        "binary_sensor.gas_monitor_device_online",
+        "sensor.gas_ppm",
+        "sensor.gas_raw_mv"
+      ],
+      "shortcuts": [
+        {
+          "type": "summary",
+          "key": "light"
+        },
+        {
+          "type": "summary",
+          "key": "climate"
+        },
+        {
+          "type": "summary",
+          "key": "security"
+        },
+        {
+          "type": "summary",
+          "key": "media_players"
+        },
+        {
+          "type": "summary",
+          "key": "maintenance"
+        },
+        {
+          "type": "summary",
+          "key": "weather"
+        },
+        {
+          "type": "summary",
+          "key": "energy"
+        }
+      ]
+    }
+  }
+}

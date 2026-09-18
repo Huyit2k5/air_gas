@@ -1,0 +1,17 @@
+{
+  "version": 2,
+  "minor_version": 1,
+  "key": "person",
+  "data": {
+    "items": [
+      {
+        "id": "thanh_huy",
+        "name": "Thanh Huy",
+        "user_id": "2698ba1de0da43ca8537c0aecf055e58",
+        "device_trackers": [
+          "device_tracker.23129raa4g"
+        ]
+      }
+    ]
+  }
+}
