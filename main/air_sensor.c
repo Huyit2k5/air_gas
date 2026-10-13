@@ -57,11 +57,44 @@ static bool calibration_init(adc_unit_t unit, adc_channel_t chan,
     return false;
 }
 
+/* See gas_sensor.c: drop the first read after a channel switch, then
+ * trimmed-mean over several samples to cut ADC noise and cross-channel leak. */
+#define ADC_SAMPLES 16
+#define ADC_TRIM 4
+
+static int read_raw_filtered(adc_channel_t chan)
+{
+    adc_oneshot_unit_handle_t adc = gas_sensor_get_adc_unit();
+    int samples[ADC_SAMPLES];
+    int dummy;
+    adc_oneshot_read(adc, chan, &dummy);
+
+    for (int i = 0; i < ADC_SAMPLES; i++) {
+        if (adc_oneshot_read(adc, chan, &samples[i]) != ESP_OK) {
+            return -1;
+        }
+    }
+    for (int i = 1; i < ADC_SAMPLES; i++) {
+        int v = samples[i];
+        int j = i - 1;
+        while (j >= 0 && samples[j] > v) {
+            samples[j + 1] = samples[j];
+            j--;
+        }
+        samples[j + 1] = v;
+    }
+    int sum = 0;
+    for (int i = ADC_TRIM; i < ADC_SAMPLES - ADC_TRIM; i++) {
+        sum += samples[i];
+    }
+    return sum / (ADC_SAMPLES - 2 * ADC_TRIM);
+}
+
 static uint16_t read_raw_mv(void)
 {
     adc_channel_t chan = (adc_channel_t)CONFIG_AQ_ADC_CHANNEL;
-    int raw;
-    if (adc_oneshot_read(gas_sensor_get_adc_unit(), chan, &raw) != ESP_OK) {
+    int raw = read_raw_filtered(chan);
+    if (raw < 0) {
         return 0;
     }
 
@@ -105,55 +138,73 @@ static float compute_co2_ppm(float rs_ohm)
     return ppm;
 }
 
-static void calibrate_ro(void)
+static bool cal_nvs_open(nvs_handle_t *handle)
 {
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         nvs_flash_erase();
         err = nvs_flash_init();
     }
+    return err == ESP_OK && nvs_open("aq_cal", NVS_READWRITE, handle) == ESP_OK;
+}
 
-    nvs_handle_t handle = 0;
-    bool have_handle = false;
-    if (err == ESP_OK) {
-        have_handle = (nvs_open("aq_cal", NVS_READWRITE, &handle) == ESP_OK);
-    }
-    if (!have_handle) {
-        ESP_LOGW(TAG, "NVS unavailable, calibration will not persist across reboots");
-    }
-
-    float stored_ro = 0.0f;
-    size_t len = sizeof(stored_ro);
-    if (have_handle &&
-        nvs_get_blob(handle, "ro_ohm", &stored_ro, &len) == ESP_OK &&
-        len == sizeof(stored_ro) && stored_ro > 0.0f) {
-        s_ro_ohm = stored_ro;
-        ESP_LOGI(TAG, "Loaded MQ-135 calibration from NVS: Ro=%.1f ohm", s_ro_ohm);
-        nvs_close(handle);
-        return;
-    }
-
-    ESP_LOGW(TAG, "No saved calibration -- calibrating Ro now, assuming the "
-                  "sensor is currently in normal/well-ventilated air "
-                  "(~%dppm CO2). Keep it there for the next %d seconds...",
+/* See gas_sensor.c: refuses (keeping the previous Ro) while the sensor reads
+ * as unpowered, since an Ro from a dead sensor ruins every later reading. */
+static esp_err_t measure_ro(void)
+{
+    ESP_LOGW(TAG, "Calibrating Ro, assuming the sensor is in normal/well-ventilated "
+                  "air (~%dppm CO2). Keep it there for the next %d seconds...",
              (int)CO2_ATMOSPHERIC_PPM,
              (CAL_SAMPLE_COUNT * CAL_SAMPLE_DELAY_MS) / 1000);
 
     float sum_rs = 0.0f;
+    uint32_t sum_mv = 0;
     for (int i = 0; i < CAL_SAMPLE_COUNT; i++) {
-        sum_rs += compute_rs_ohm(read_raw_mv());
+        uint16_t mv = read_raw_mv();
+        sum_mv += mv;
+        sum_rs += compute_rs_ohm(mv);
         vTaskDelay(pdMS_TO_TICKS(CAL_SAMPLE_DELAY_MS));
     }
+    uint16_t mv_avg = sum_mv / CAL_SAMPLE_COUNT;
+    if (mv_avg < SENSOR_NO_POWER_MV) {
+        ESP_LOGE(TAG, "Calibration aborted: MQ-135 reads %u mV, it has no power "
+                      "(check its VCC wire). Keeping Ro=%.1f ohm", mv_avg, s_ro_ohm);
+        return ESP_ERR_INVALID_STATE;
+    }
+
     float rs_avg = sum_rs / CAL_SAMPLE_COUNT;
     /* Invert the ppm curve at the assumed atmospheric baseline to get Ro. */
     s_ro_ohm = rs_avg * powf(CO2_CURVE_A / CO2_ATMOSPHERIC_PPM, 1.0f / CO2_CURVE_B);
-    ESP_LOGI(TAG, "Calibration done: Rs_avg=%.1f ohm, Ro=%.1f ohm",
-             rs_avg, s_ro_ohm);
+    ESP_LOGI(TAG, "Calibration done: %u mV, Rs_avg=%.1f ohm, Ro=%.1f ohm",
+             mv_avg, rs_avg, s_ro_ohm);
 
-    if (have_handle) {
+    nvs_handle_t handle;
+    if (cal_nvs_open(&handle)) {
         nvs_set_blob(handle, "ro_ohm", &s_ro_ohm, sizeof(s_ro_ohm));
         nvs_commit(handle);
         nvs_close(handle);
+    } else {
+        ESP_LOGW(TAG, "NVS unavailable, calibration will not persist across reboots");
+    }
+    return ESP_OK;
+}
+
+static void load_ro(void)
+{
+    nvs_handle_t handle;
+    if (cal_nvs_open(&handle)) {
+        float stored_ro = 0.0f;
+        size_t len = sizeof(stored_ro);
+        if (nvs_get_blob(handle, "ro_ohm", &stored_ro, &len) == ESP_OK &&
+            len == sizeof(stored_ro) && stored_ro > 0.0f) {
+            s_ro_ohm = stored_ro;
+            ESP_LOGI(TAG, "Loaded MQ-135 calibration from NVS: Ro=%.1f ohm", s_ro_ohm);
+        }
+        nvs_close(handle);
+    }
+    if (s_ro_ohm <= 0.0f && measure_ro() != ESP_OK) {
+        ESP_LOGW(TAG, "MQ-135 not calibrated yet: power it, wait a few minutes, "
+                      "then send {\"recalibrate\":true}");
     }
 }
 
@@ -182,7 +233,7 @@ esp_err_t air_sensor_init(void)
     ESP_LOGI(TAG, "Air quality sensor ready on ADC1_CH%d (GPIO %d)",
              CONFIG_AQ_ADC_CHANNEL, CONFIG_AQ_ADC_PIN);
 
-    calibrate_ro();
+    load_ro();
     return ESP_OK;
 }
 
@@ -190,8 +241,16 @@ air_reading_t air_sensor_read(void)
 {
     air_reading_t r;
     r.mv = read_raw_mv();
-    r.co2_ppm = compute_co2_ppm(compute_rs_ohm(r.mv));
+    /* compute_co2_ppm() floors at 400 ppm, which would make an unplugged
+     * sensor look like perfectly clean air: report it as a fault instead. */
+    r.fault = r.mv < SENSOR_NO_POWER_MV;
+    r.co2_ppm = r.fault ? 0.0f : compute_co2_ppm(compute_rs_ohm(r.mv));
     return r;
+}
+
+esp_err_t air_sensor_recalibrate(void)
+{
+    return measure_ro();
 }
 
 bool air_sensor_is_poor(float co2_ppm)
@@ -209,8 +268,13 @@ esp_err_t air_sensor_init(void)
 
 air_reading_t air_sensor_read(void)
 {
-    air_reading_t r = { .mv = 0, .co2_ppm = 0.0f };
+    air_reading_t r = { .mv = 0, .co2_ppm = 0.0f, .fault = false };
     return r;
+}
+
+esp_err_t air_sensor_recalibrate(void)
+{
+    return ESP_OK;
 }
 
 bool air_sensor_is_poor(float co2_ppm)

@@ -53,11 +53,45 @@ static bool calibration_init(adc_unit_t unit, adc_channel_t chan,
     return false;
 }
 
+/* The ESP32 ADC is noisy and the sample capacitor still holds charge from the
+ * previously read channel, so one-shot reads of a high-impedance source jump
+ * around (and leak between channels). Drop the first read after switching
+ * channel, then trimmed-mean over several samples. */
+#define ADC_SAMPLES 16
+#define ADC_TRIM 4
+
+static int read_raw_filtered(adc_channel_t chan)
+{
+    int samples[ADC_SAMPLES];
+    int dummy;
+    adc_oneshot_read(s_adc_handle, chan, &dummy);
+
+    for (int i = 0; i < ADC_SAMPLES; i++) {
+        if (adc_oneshot_read(s_adc_handle, chan, &samples[i]) != ESP_OK) {
+            return -1;
+        }
+    }
+    for (int i = 1; i < ADC_SAMPLES; i++) {
+        int v = samples[i];
+        int j = i - 1;
+        while (j >= 0 && samples[j] > v) {
+            samples[j + 1] = samples[j];
+            j--;
+        }
+        samples[j + 1] = v;
+    }
+    int sum = 0;
+    for (int i = ADC_TRIM; i < ADC_SAMPLES - ADC_TRIM; i++) {
+        sum += samples[i];
+    }
+    return sum / (ADC_SAMPLES - 2 * ADC_TRIM);
+}
+
 static uint16_t read_raw_mv(void)
 {
     adc_channel_t chan = (adc_channel_t)CONFIG_GAS_ADC_CHANNEL;
-    int raw;
-    if (adc_oneshot_read(s_adc_handle, chan, &raw) != ESP_OK) {
+    int raw = read_raw_filtered(chan);
+    if (raw < 0) {
         return 0;
     }
 
@@ -100,53 +134,72 @@ static float compute_ppm(float rs_ohm)
     return LPG_CURVE_A * powf(ratio, LPG_CURVE_B);
 }
 
-static void calibrate_ro(void)
+static bool cal_nvs_open(nvs_handle_t *handle)
 {
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         nvs_flash_erase();
         err = nvs_flash_init();
     }
+    return err == ESP_OK && nvs_open("gas_cal", NVS_READWRITE, handle) == ESP_OK;
+}
 
-    nvs_handle_t handle = 0;
-    bool have_handle = false;
-    if (err == ESP_OK) {
-        have_handle = (nvs_open("gas_cal", NVS_READWRITE, &handle) == ESP_OK);
-    }
-    if (!have_handle) {
-        ESP_LOGW(TAG, "NVS unavailable, calibration will not persist across reboots");
-    }
-
-    float stored_ro = 0.0f;
-    size_t len = sizeof(stored_ro);
-    if (have_handle &&
-        nvs_get_blob(handle, "ro_ohm", &stored_ro, &len) == ESP_OK &&
-        len == sizeof(stored_ro) && stored_ro > 0.0f) {
-        s_ro_ohm = stored_ro;
-        ESP_LOGI(TAG, "Loaded MQ-2 calibration from NVS: Ro=%.1f ohm", s_ro_ohm);
-        nvs_close(handle);
-        return;
-    }
-
-    ESP_LOGW(TAG, "No saved calibration -- calibrating Ro now, assuming the "
-                  "sensor is currently in CLEAN AIR (no gas). Keep it there "
-                  "for the next %d seconds...",
+/* Measures Ro in clean air and saves it. Refuses while the sensor reads as
+ * unpowered: an Ro taken from a dead sensor makes every later reading wrong,
+ * so the previous Ro (if any) is kept. */
+static esp_err_t measure_ro(void)
+{
+    ESP_LOGW(TAG, "Calibrating Ro, assuming the sensor is in CLEAN AIR (no gas). "
+                  "Keep it there for the next %d seconds...",
              (CAL_SAMPLE_COUNT * CAL_SAMPLE_DELAY_MS) / 1000);
 
     float sum_rs = 0.0f;
+    uint32_t sum_mv = 0;
     for (int i = 0; i < CAL_SAMPLE_COUNT; i++) {
-        sum_rs += compute_rs_ohm(read_raw_mv());
+        uint16_t mv = read_raw_mv();
+        sum_mv += mv;
+        sum_rs += compute_rs_ohm(mv);
         vTaskDelay(pdMS_TO_TICKS(CAL_SAMPLE_DELAY_MS));
     }
+    uint16_t mv_avg = sum_mv / CAL_SAMPLE_COUNT;
+    if (mv_avg < SENSOR_NO_POWER_MV) {
+        ESP_LOGE(TAG, "Calibration aborted: MQ-2 reads %u mV, it has no power "
+                      "(check its VCC wire). Keeping Ro=%.1f ohm", mv_avg, s_ro_ohm);
+        return ESP_ERR_INVALID_STATE;
+    }
+
     float rs_avg = sum_rs / CAL_SAMPLE_COUNT;
     s_ro_ohm = rs_avg / RO_CLEAN_AIR_FACTOR;
-    ESP_LOGI(TAG, "Calibration done: Rs_avg=%.1f ohm, Ro=%.1f ohm",
-             rs_avg, s_ro_ohm);
+    ESP_LOGI(TAG, "Calibration done: %u mV, Rs_avg=%.1f ohm, Ro=%.1f ohm",
+             mv_avg, rs_avg, s_ro_ohm);
 
-    if (have_handle) {
+    nvs_handle_t handle;
+    if (cal_nvs_open(&handle)) {
         nvs_set_blob(handle, "ro_ohm", &s_ro_ohm, sizeof(s_ro_ohm));
         nvs_commit(handle);
         nvs_close(handle);
+    } else {
+        ESP_LOGW(TAG, "NVS unavailable, calibration will not persist across reboots");
+    }
+    return ESP_OK;
+}
+
+static void load_ro(void)
+{
+    nvs_handle_t handle;
+    if (cal_nvs_open(&handle)) {
+        float stored_ro = 0.0f;
+        size_t len = sizeof(stored_ro);
+        if (nvs_get_blob(handle, "ro_ohm", &stored_ro, &len) == ESP_OK &&
+            len == sizeof(stored_ro) && stored_ro > 0.0f) {
+            s_ro_ohm = stored_ro;
+            ESP_LOGI(TAG, "Loaded MQ-2 calibration from NVS: Ro=%.1f ohm", s_ro_ohm);
+        }
+        nvs_close(handle);
+    }
+    if (s_ro_ohm <= 0.0f && measure_ro() != ESP_OK) {
+        ESP_LOGW(TAG, "MQ-2 not calibrated yet: power it, wait a few minutes, "
+                      "then send {\"recalibrate\":true}");
     }
 }
 
@@ -184,7 +237,7 @@ esp_err_t gas_sensor_init(void)
     ESP_LOGI(TAG, "Gas sensor ready on ADC1_CH%d (GPIO %d)",
              CONFIG_GAS_ADC_CHANNEL, CONFIG_GAS_ADC_PIN);
 
-    calibrate_ro();
+    load_ro();
     return ESP_OK;
 }
 
@@ -192,8 +245,14 @@ gas_reading_t gas_sensor_read(void)
 {
     gas_reading_t r;
     r.mv = read_raw_mv();
-    r.ppm = compute_ppm(compute_rs_ohm(r.mv));
+    r.fault = r.mv < SENSOR_NO_POWER_MV;
+    r.ppm = r.fault ? 0.0f : compute_ppm(compute_rs_ohm(r.mv));
     return r;
+}
+
+esp_err_t gas_sensor_recalibrate(void)
+{
+    return measure_ro();
 }
 
 bool gas_sensor_is_alarm(float ppm)

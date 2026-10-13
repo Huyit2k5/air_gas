@@ -1,8 +1,8 @@
 menu "Gas Monitor"
 
     config GAS_ADC_PIN
-        int "Gas sensor ADC pin (GPIO number, 0-35 for ADC1)"
-        range 0 35
+        int "Gas sensor ADC pin (GPIO number, 32-39 for ADC1)"
+        range 0 39
         default 36
 
     config GAS_ADC_CHANNEL
@@ -73,6 +73,35 @@ menu "Gas Monitor"
             reading is above the alarm threshold, independent of Wi-Fi or
             Discord status. Default (2) is the onboard LED on most ESP32
             DevKit boards.
+
+    config GAS_BUZZER_ENABLE
+        bool "Enable active buzzer alarm"
+        default y
+        help
+            Drives an ACTIVE buzzer (sounds on its own when powered, no
+            tone generation needed). Beeps fast on a gas alarm and slowly on
+            poor air quality. Silent at boot.
+
+    config GAS_BUZZER_GPIO
+        int "Active buzzer GPIO pin"
+        depends on GAS_BUZZER_ENABLE
+        range 0 33
+        default 4
+        help
+            Output-capable GPIO connected to the buzzer's (+) leg; the other
+            leg goes to GND. Avoid 2 (alarm LED), 6-11 (flash) and the input
+            only pins 34-39. GPIO 0, 12 and 15 are boot-strapping pins and are
+            best avoided as well.
+
+    config GAS_BUZZER_SELFTEST
+        bool "Buzzer self-test (beep forever, DISABLES monitoring)"
+        depends on GAS_BUZZER_ENABLE
+        default n
+        help
+            Wiring check only. After boot the buzzer GPIO is driven high for
+            2 s, then low for 2 s, forever, and each change is logged. The
+            sensors, Wi-Fi and MQTT never start while this is enabled. Turn it
+            off again for normal operation.
 
     config GAS_WIFI_SSID
         string "Wi-Fi SSID"

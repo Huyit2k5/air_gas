@@ -1,0 +1,1333 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Air Gas Monitor Live</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: tiêu đề, bộ điều khiển, một sân khấu 3D (kéo để xoay, cuộn để phóng to), thẻ số liệu, rồi chi tiết linh kiện và bảng chân.
+   Cảnh 3D dựng theo mm thật: 1 đơn vị = 1 mm, bước chân 2,54 mm. */
+:root {
+  --font-ui: 'Be Vietnam Pro', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, Consolas, monospace;
+  --bg: #eceff1;
+  --panel: #ffffff;
+  --fg: #1a2026;
+  --muted: #56636e;
+  --line: #d2d9de;
+  --accent: #d9482b;
+  --accent-soft: #fbe4de;
+  --ok: #2b8a4b;
+  --ok-soft: #dff1e5;
+  --ring: #b86e00;
+  --scene-bg: #dde3e7;
+  --scene-table: #c7ced3;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101519; --panel: #182026; --fg: #e5ebef; --muted: #9aa7b2; --line: #2a353d;
+    --accent: #ff7a59; --accent-soft: #3a211b; --ok: #55c27a; --ok-soft: #17301f; --ring: #f0a63a;
+    --scene-bg: #0f1519; --scene-table: #1d262c;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101519; --panel: #182026; --fg: #e5ebef; --muted: #9aa7b2; --line: #2a353d;
+  --accent: #ff7a59; --accent-soft: #3a211b; --ok: #55c27a; --ok-soft: #17301f; --ring: #f0a63a;
+  --scene-bg: #0f1519; --scene-table: #1d262c;
+  color-scheme: dark;
+}
+body { background: var(--bg); color: var(--fg); font-family: var(--font-ui); line-height: 1.55; }
+.wrap { max-width: 1180px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 48px; display: flex; flex-direction: column; gap: 20px; }
+header h1 { margin: 0; font-size: clamp(26px, 4vw, 38px); font-weight: 700; letter-spacing: -0.01em; text-wrap: balance; }
+header p { margin: 8px 0 0; color: var(--muted); max-width: 72ch; text-wrap: pretty; }
+.controls { display: flex; flex-wrap: wrap; gap: 14px 24px; align-items: flex-end; }
+.group { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.group > span { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); overflow: hidden; }
+.seg button { font: inherit; font-size: 14px; font-weight: 500; color: var(--fg); background: transparent; border: 0; padding: 9px 14px; cursor: pointer; border-right: 1px solid var(--line); }
+.seg button:last-child { border-right: 0; }
+.seg button:hover { background: var(--bg); }
+.seg button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+.seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+figure { margin: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+.stage { position: relative; height: clamp(380px, 60vw, 640px); border-radius: 8px; overflow: hidden; background: var(--scene-bg); touch-action: none; }
+.stage canvas { display: block; width: 100%; height: 100%; }
+.labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.lab { position: absolute; left: 0; top: 0; transform: translate(-50%, -100%); font: 600 11px var(--font-mono); background: var(--panel); color: var(--fg); border: 1px solid var(--line); padding: 2px 7px; border-radius: 6px; white-space: nowrap; }
+.lab.warn { color: var(--accent); border-color: var(--accent); }
+.badge { position: absolute; left: 12px; top: 12px; right: 12px; max-width: 420px; font-size: 13px; line-height: 1.4; background: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent); border-radius: 8px; padding: 8px 12px; font-weight: 600; }
+.hint { position: absolute; right: 12px; bottom: 10px; font-size: 12px; color: var(--muted); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; pointer-events: none; }
+.nogl { padding: 28px; color: var(--muted); }
+figcaption { font-size: 13px; color: var(--muted); padding: 10px 6px 2px; max-width: 95ch; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; padding: 10px 6px 0; font-size: 12.5px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 8px; }
+.legend i { display: inline-block; width: 22px; height: 5px; border-radius: 3px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; min-width: 0; }
+.card h3 { margin: 0; font-size: 13px; font-weight: 600; color: var(--muted); }
+.card .big { font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 2px; line-height: 1.2; }
+.card .big small { font-size: 14px; font-weight: 500; color: var(--muted); }
+.card .sub { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; margin-top: 2px; }
+.chip { display: inline-block; margin-top: 8px; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; background: var(--ok-soft); color: var(--ok); }
+.chip.alert { background: var(--accent-soft); color: var(--accent); }
+.mqtt { font-family: var(--font-mono); font-size: 11.5px; line-height: 1.5; margin-top: 6px; color: var(--fg); overflow-wrap: anywhere; }
+.mqtt i { font-style: normal; color: var(--muted); display: block; }
+.lower { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 20px; align-items: start; }
+@media (max-width: 820px) { .lower { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; min-width: 0; }
+.panel h2 { margin: 0 0 8px; font-size: 16px; font-weight: 600; }
+.panel p { margin: 6px 0; font-size: 14px; text-wrap: pretty; }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 600; }
+td.mono { font-family: var(--font-mono); font-size: 13px; }
+td.bad { color: var(--accent); font-weight: 600; }
+td.good { color: var(--ok); font-weight: 600; }
+.note { font-size: 13px; color: var(--muted); margin-top: 10px; }
+.specs { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 13.5px; }
+.specs li { display: flex; gap: 10px; }
+.specs b { flex: 0 0 8.5em; font-weight: 600; color: var(--muted); }
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; }
+.live { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+.live[hidden], #logPanel[hidden], .group[hidden] { display: none; }
+.form { display: grid; gap: 6px; margin-top: 6px; }
+.form label { font-size: 12.5px; color: var(--muted); font-weight: 600; margin-top: 4px; }
+.form input[type=text], .form input[type=password], .form select { font: inherit; font-size: 14px; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 7px; padding: 8px 10px; width: 100%; min-width: 0; }
+.form .check { display: flex; align-items: center; gap: 8px; font-weight: 500; color: var(--fg); font-size: 14px; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.btn { font: inherit; font-size: 14px; font-weight: 600; padding: 8px 14px; border-radius: 7px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); cursor: pointer; }
+.btn.primary { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn.arm { border-color: var(--accent); color: var(--accent); }
+.btn:focus-visible, .form input:focus-visible, .form select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.stat { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 6px; font-size: 13.5px; }
+.stat li { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.stat b { color: var(--muted); font-weight: 600; }
+.pill { font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: var(--bg); color: var(--muted); }
+.pill.good { background: var(--ok-soft); color: var(--ok); }
+.pill.bad { background: var(--accent-soft); color: var(--accent); }
+.log { list-style: none; margin: 8px 0 0; padding: 0; font-family: var(--font-mono); font-size: 12px; max-height: 280px; overflow: auto; display: grid; gap: 3px; }
+.log li { display: grid; grid-template-columns: 72px 18px minmax(0, 1fr); gap: 8px; }
+.log .in { color: var(--ok); }
+.log .out { color: var(--accent); }
+.log li span:last-child { overflow-wrap: anywhere; }
+.discord-form { max-width: 640px; }
+</style>
+</head>
+<body>
+
+<main class="wrap">
+  <header>
+    <h1>Air Gas Monitor Live</h1>
+    <p>Bảng điều khiển cho thiết bị thật: kết nối broker MQTT qua WebSocket để xem số liệu trực tiếp từ ESP32 trên mô hình 3D, gửi lệnh giả lập rò gas hoặc không khí kém xuống thiết bị (còi, LED, MQTT và Discord chạy như sự cố thật), và đổi cấu hình thiết bị. Chế độ "Mô phỏng trong trang" chạy không cần thiết bị.</p>
+  </header>
+
+  <section class="controls" aria-label="Điều khiển mô hình">
+    <div class="group">
+      <span>Nguồn dữ liệu</span>
+      <div class="seg" id="segSource">
+        <button type="button" data-v="sim" aria-pressed="true">Mô phỏng trong trang</button>
+        <button type="button" data-v="live" aria-pressed="false">Thiết bị thật (MQTT)</button>
+      </div>
+    </div>
+    <div class="group">
+      <span id="scenLabel">Tình huống</span>
+      <div class="seg" id="segScenario">
+        <button type="button" data-v="normal" aria-pressed="true">Không khí sạch</button>
+        <button type="button" data-v="gas" aria-pressed="false">Rò gas</button>
+        <button type="button" data-v="air" aria-pressed="false">Không khí kém</button>
+      </div>
+    </div>
+    <div class="group" id="grpPower">
+      <span>Thiết bị</span>
+      <div class="seg"><button type="button" id="btnPower">Cấp nguồn lại</button></div>
+    </div>
+    <div class="group">
+      <span>Góc nhìn</span>
+      <div class="seg" id="segView">
+        <button type="button" data-v="overview" aria-pressed="true">Toàn cảnh</button>
+        <button type="button" data-v="esp32" aria-pressed="false">ESP32</button>
+        <button type="button" data-v="mq2" aria-pressed="false">MQ-2</button>
+        <button type="button" data-v="mq135" aria-pressed="false">MQ-135</button>
+        <button type="button" data-v="buzzer" aria-pressed="false">Còi</button>
+        <button type="button" data-v="bread" aria-pressed="false">Breadboard</button>
+        <button type="button" data-v="tank" aria-pressed="false">Bình gas</button>
+        <button type="button" data-v="candle" aria-pressed="false">Nến</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="live" id="livePanel" hidden aria-label="Thiết bị thật">
+    <div class="panel">
+      <h2>Kết nối thiết bị</h2>
+      <div class="form">
+        <label for="brokerUrl">Broker MQTT (WebSocket)</label>
+        <input id="brokerUrl" type="text" value="ws://localhost:9001" spellcheck="false">
+        <label for="devName">Tên thiết bị</label>
+        <input id="devName" type="text" value="Gas-Monitor-01" spellcheck="false">
+        <div class="row">
+          <button type="button" class="btn primary" id="btnConnect">Kết nối</button>
+          <button type="button" class="btn" id="btnDisconnect" disabled>Ngắt kết nối</button>
+        </div>
+      </div>
+      <ul class="stat">
+        <li><b>Broker</b><span id="stBroker" class="pill">chưa kết nối</span></li>
+        <li><b>Thiết bị</b><span id="stDevice" class="pill">chưa rõ</span></li>
+        <li><b>Dữ liệu</b><span id="stData">chưa có</span></li>
+        <li><b>Firmware</b><span id="stFw">chưa báo phiên bản</span></li>
+      </ul>
+      <p class="note">Mở trang trên máy đang chạy Docker thì dùng ws://localhost:9001. Mở trên điện thoại hoặc máy khác thì thay localhost bằng IP LAN của máy chạy Docker và mở cổng TCP 9001 trên tường lửa.</p>
+    </div>
+    <div class="panel">
+      <h2>Giả lập trên thiết bị thật</h2>
+      <p>Dùng các nút ở mục "Giả lập trên thiết bị" phía trên. Thiết bị thay số đọc cảm biến bằng giá trị giả nên còi, LED, MQTT và Discord chạy như khi có sự cố thật.</p>
+      <div class="form">
+        <label for="simDur">Tự tắt sau</label>
+        <select id="simDur">
+          <option value="30">30 giây</option>
+          <option value="60" selected>60 giây</option>
+          <option value="120">2 phút</option>
+          <option value="300">5 phút</option>
+        </select>
+        <label class="check"><input id="simDiscord" type="checkbox" checked> Gửi tin Discord khi giả lập</label>
+      </div>
+      <p class="note" id="cmdNote">Chưa gửi lệnh nào.</p>
+    </div>
+    <div class="panel">
+      <h2>Cấu hình thiết bị</h2>
+      <div class="form">
+        <label for="wifiSsid">Tên Wi-Fi mới</label>
+        <input id="wifiSsid" type="text" autocomplete="off" spellcheck="false">
+        <label for="wifiPass">Mật khẩu Wi-Fi</label>
+        <input id="wifiPass" type="password" autocomplete="new-password">
+        <div class="row"><button type="button" class="btn" id="btnWifi">Gửi Wi-Fi mới</button></div>
+        <label for="newBroker">Địa chỉ broker cho thiết bị</label>
+        <input id="newBroker" type="text" placeholder="mqtt://192.168.1.14:1883" spellcheck="false">
+        <div class="row">
+          <button type="button" class="btn" id="btnBroker">Gửi địa chỉ broker</button>
+          <button type="button" class="btn" id="btnRecal">Hiệu chuẩn lại cảm biến</button>
+        </div>
+      </div>
+      <p class="note">Các lệnh ở đây cần firmware mới (chưa nạp), firmware hiện tại sẽ bỏ qua. Mỗi nút phải bấm hai lần để xác nhận. Mật khẩu Wi-Fi đi qua MQTT không mã hóa, chỉ dùng trong mạng nhà.</p>
+    </div>
+  </section>
+
+  <figure>
+    <div class="stage" id="stage">
+      <canvas id="gl" role="img" aria-label="Mô hình 3D: ESP32 DevKit V1 bên phải, breadboard bên trái mang cảm biến MQ-2, MQ-135 và còi, dây đực–cái nối các chân tín hiệu và nguồn sang ESP32."></canvas>
+      <div class="labels" id="labels"></div>
+      <div class="badge" id="badge" hidden></div>
+      <div class="hint">kéo: xoay · cuộn: phóng to · chuột phải: dời</div>
+    </div>
+    <div class="legend" aria-label="Chú giải màu dây">
+      <span><i style="background:#d93a2f"></i>5V từ VIN → thanh +</span>
+      <span><i style="background:#2a2f33;outline:1px solid #7a858d"></i>GND → thanh −</span>
+      <span><i style="background:#e2b100"></i>AO MQ-2 → D35</span>
+      <span><i style="background:#ee7a00"></i>AO MQ-135 → D34</span>
+      <span><i style="background:#2f6fd6"></i>D4 → chân + của còi</span>
+      <span><i style="background:#7b4b2a"></i>chân − của còi → thanh − (khi cắm đúng)</span>
+    </div>
+    <figcaption>Dựng theo tỉ lệ thật: breadboard 400 điểm (82 × 55 mm), ESP32 DevKit V1 (51,8 × 28,2 mm), module MQ 32 × 22 mm đứng trên chân cắm, còi ø12 mm. Ở chế độ "Mô phỏng trong trang" số liệu tính theo công thức trong firmware. Ở chế độ "Thiết bị thật" số liệu, LED và còi trên mô hình lấy từ gói MQTT của thiết bị; nhịp còi trên mô hình là suy ra từ cờ báo động. Bình gas và cây nến là vật minh họa nguồn khí, thu nhỏ để vừa khung hình, không theo tỉ lệ thật.</figcaption>
+  </figure>
+
+  <section class="cards" aria-label="Số liệu mô phỏng">
+    <div class="card">
+      <h3>MQ-2 · khí gas (LPG ước tính)</h3>
+      <div class="big"><span id="vGas">0</span> <small>ppm</small></div>
+      <div class="sub">ADC <span id="mvGas">0</span> mV · ngưỡng 1000 ppm</div>
+      <div class="sub" id="srcGas">đọc GPIO36</div>
+      <span class="chip" id="chipGas">An toàn</span>
+    </div>
+    <div class="card">
+      <h3>MQ-135 · chất lượng không khí (CO₂ tương đương)</h3>
+      <div class="big"><span id="vAir">0</span> <small>ppm</small></div>
+      <div class="sub">ADC <span id="mvAir">0</span> mV · ngưỡng 1500 ppm</div>
+      <div class="sub" id="srcAir">đọc GPIO39</div>
+      <span class="chip" id="chipAir">Không khí tốt</span>
+    </div>
+    <div class="card">
+      <h3>Còi và đèn LED</h3>
+      <div class="big" id="vBuz" style="font-size:22px">Im</div>
+      <div class="sub" id="subBuz">LED GPIO2 tắt</div>
+      <span class="chip" id="chipBuz">Chờ</span>
+    </div>
+    <div class="card">
+      <h3>Gói MQTT gần nhất (mỗi giây)</h3>
+      <div class="mqtt"><i>airgas/Gas-Monitor-01/reading</i><span id="mqG">đang chờ kết nối…</span><i>airquality/Gas-Monitor-01/reading</i><span id="mqA">đang chờ kết nối…</span></div>
+    </div>
+  </section>
+
+  <section class="panel" id="discordPanel" aria-label="Thông báo Discord">
+    <h2>Thông báo Discord</h2>
+    <div class="form discord-form">
+      <label for="dcUrl">Link webhook Discord</label>
+      <input id="dcUrl" type="password" placeholder="https://discord.com/api/webhooks/..." autocomplete="off" spellcheck="false">
+      <label class="check"><input id="dcShow" type="checkbox"> Hiện link</label>
+      <label class="check"><input id="dcEnable" type="checkbox" checked> Gửi tin khi báo động ở chế độ "Mô phỏng trong trang"</label>
+      <div class="row">
+        <button type="button" class="btn" id="dcTest">Gửi tin thử</button>
+        <button type="button" class="btn" id="dcToDevice">Lưu webhook vào thiết bị</button>
+      </div>
+    </div>
+    <p class="note" id="dcNote">Link chỉ lưu trên trình duyệt này. Ở chế độ "Mô phỏng trong trang", trang tự gửi tin có ghi [GIẢ LẬP], cách nhau ít nhất 60 giây cho mỗi loại báo động. Ở chế độ "Thiết bị thật", thiết bị tự gửi tin bằng webhook đã lưu trong thiết bị.</p>
+  </section>
+
+  <section class="lower">
+    <div class="panel" id="info" aria-live="polite">
+      <h2>Chi tiết linh kiện</h2>
+      <p>Chọn một linh kiện trong cảnh 3D hoặc ở mục "Góc nhìn": ESP32, MQ-2, MQ-135, còi hoặc breadboard.</p>
+    </div>
+    <div class="panel">
+      <h2>Chân nối: đang cắm và firmware đọc</h2>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Chức năng</th><th>Đang cắm</th><th>Firmware đọc</th><th>Kết quả</th></tr></thead>
+          <tbody id="mapBody"></tbody>
+        </table>
+      </div>
+      <p class="note" id="mapNote"></p>
+    </div>
+  </section>
+  <section class="panel" id="logPanel" hidden>
+    <h2>Nhật ký MQTT</h2>
+    <ol class="log" id="log"></ol>
+  </section>
+</main>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+} }
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mqtt@4.3.7/dist/mqtt.min.js"></script>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const rand = (a, b) => a + Math.random() * (b - a);
+
+  /* three.js r169 (ES modules). Loaded lazily: if the CDN fails, the live MQTT panel still works. */
+  let THREE = null, OrbitControls = null, ADD = {};
+  async function loadThree() {
+    const [core, oc, re, ec, rp, ub, op] = await Promise.all([
+      import('three'),
+      import('three/addons/controls/OrbitControls.js'),
+      import('three/addons/environments/RoomEnvironment.js'),
+      import('three/addons/postprocessing/EffectComposer.js'),
+      import('three/addons/postprocessing/RenderPass.js'),
+      import('three/addons/postprocessing/UnrealBloomPass.js'),
+      import('three/addons/postprocessing/OutputPass.js'),
+    ]);
+    THREE = core; OrbitControls = oc.OrbitControls;
+    ADD = { RoomEnvironment: re.RoomEnvironment, EffectComposer: ec.EffectComposer, RenderPass: rp.RenderPass, UnrealBloomPass: ub.UnrealBloomPass, OutputPass: op.OutputPass };
+  }
+
+  /* ======================= dữ liệu và công thức (theo firmware) ======================= */
+  const state = { scenario: 'normal', fw: 'fixed', buz: 'ok', view: 'overview' };
+  const target = { normal: { g: 215, a: 195 }, gas: { g: 1950, a: 215 }, air: { g: 215, a: 800 } };
+  const sim = { g: 215, a: 195 };
+  let pw0 = performance.now() - 30000;
+  const ppmGas = mv => { const rs = 5000 * (5000 - mv) / Math.max(mv, 1); return 574.25 * Math.pow(rs / 12878.5, -2.222); };
+  const ppmAir = mv => { const rs = 20000 * (5000 - mv) / Math.max(mv, 1); return Math.max(400, 116.602 * Math.pow(rs / 340186, -2.769)); };
+
+  /* ======================= hình học breadboard (mm) ======================= */
+  const colX = n => -36.83 + (n - 1) * 2.54;
+  const ROWZ = { a: -13.97, b: -11.43, c: -8.89, d: -6.35, e: -3.81, f: 3.81, g: 6.35, h: 8.89, i: 11.43, j: 13.97 };
+  const BB_TOP = 8.5;
+  const railXs = [];
+  for (let g = 0; g < 5; g++) for (let i = 0; i < 5; i++) railXs.push(-33 + g * 13.96 + i * 2.54);
+  const railSnap = x => railXs.reduce((b, h) => (Math.abs(h - x) < Math.abs(b - x) ? h : b), railXs[0]);
+  const RAIL_PLUS_Z = 22.5, RAIL_MINUS_Z = 19.9;
+
+  /* ======================= ESP32 DevKit V1 (mm) ======================= */
+  const ESP = { x: 80, z: 8, w: 28.2, l: 51.8 };
+  const HXs = { L: ESP.x - 11.43, R: ESP.x + 11.43 };
+  const pinZ = i => ESP.z - 17.78 + 2.54 * i;
+  const LEFT = ['EN', 'VP', 'VN', 'D34', 'D35', 'D32', 'D33', 'D25', 'D26', 'D27', 'D14', 'D12', 'D13', 'GND', 'VIN'];
+  const RIGHT = ['D23', 'D22', 'TX0', 'RX0', 'D21', 'D19', 'D18', 'D5', 'TX2', 'RX2', 'D4', 'D2', 'D15', 'GND', '3V3'];
+  const PINS = { g36: ['L', 1], g39: ['L', 2], g34: ['L', 3], g35: ['L', 4], gnd: ['L', 13], vin: ['L', 14], g4: ['R', 10] };
+  const pinPos = k => ({ x: HXs[PINS[k][0]], z: pinZ(PINS[k][1]) });
+
+  /* ======================= thông tin linh kiện ======================= */
+  const INFO = {
+    esp32: ['ESP32 DevKit V1 (DOIT, 30 chân)', [
+      ['Đang cắm', 'AO của MQ-2 vào D35, AO của MQ-135 vào D34, chân + của còi vào D4, VIN và GND sang hai thanh nguồn của breadboard'],
+      ['Firmware (bản mới)', 'MQ-2 ở GPIO35 (ADC1 channel 7), MQ-135 ở GPIO34 (ADC1 channel 6), còi ở GPIO4, khớp cách cắm. Bản cũ đọc GPIO36 và GPIO39 là hai chân để trống'],
+      ['Bản nạp mới', 'đã tắt chế độ self-test còi. Bộ nhớ hiệu chuẩn bị xóa nên lần khởi động đầu tự hiệu chuẩn lại trong khoảng 5 giây mỗi cảm biến, cần không khí sạch và cảm biến đã nóng'],
+      ['Kích thước', '51,8 × 28,2 mm, hai hàng chân cách nhau khoảng 22,9 mm, bước chân 2,54 mm'],
+      ['Thành phần', 'module ESP32-WROOM-32 (Wi-Fi + Bluetooth), chip USB-UART CP2102, mạch ổn áp AMS1117 3,3V, nút EN (reset) và BOOT, LED nguồn đỏ, LED xanh nối GPIO2'],
+      ['Chân ADC', 'GPIO32 đến 39 thuộc ADC1, đọc analog được khi Wi-Fi đang bật. GPIO34 đến 39 chỉ nhập. ADC2 (GPIO4, 2, 12–15, 25–27) không dùng cho analog lúc bật Wi-Fi'],
+      ['Mức tối đa', 'chân GPIO chỉ chịu 3,3V, không nối trực tiếp 5V'],
+    ]],
+    mq2: ['MQ-2 · khí gas và khói', [
+      ['Đang cắm', 'AO vào D35 (GPIO35, ADC1 channel 7), đúng chân firmware bản mới đọc'],
+      ['Module', '32 × 22 mm. Mặt trước: lưới cảm biến, biến trở chỉnh ngưỡng, LED nguồn (PWR) và LED DO. Mặt sau: chip so sánh LM393. Header 4 chân VCC, GND, DO, AO ở cạnh dưới'],
+      ['Cách cắm', 'chân header cắm thẳng xuống hàng e của breadboard. Dây cắm vào lỗ cùng cột ngay phía sau cảm biến (hàng a–d): VCC và GND xuống thanh nguồn sau, AO sang D35 của ESP32, DO bỏ trống'],
+      ['Dây nung', 'điện trở 33 Ω ± 5%, cấp 5V, dưới 800 mW (khoảng 150 mA). Phần lưới kim loại ấm lên sau vài phút'],
+      ['Làm nóng', 'datasheet yêu cầu hơn 24 giờ ở lần dùng đầu tiên cho số liệu ổn định'],
+      ['LED DO', 'sáng khi AO vượt mức đặt bằng biến trở. Firmware không dùng chân DO, chỉ đọc AO'],
+      ['Lưu ý nối', 'AO có thể lên tới 5V mà chân ADC chỉ chịu 3,3V. Nối thẳng AO vào GPIO không có mạch chia áp là rủi ro cho chân ADC'],
+    ]],
+    mq135: ['MQ-135 · chất lượng không khí', [
+      ['Đang cắm', 'AO vào D34 (GPIO34, ADC1 channel 6), đúng chân firmware bản mới đọc'],
+      ['Module', '32 × 22 mm, cùng bố cục với MQ-2: lưới cảm biến, biến trở và hai LED ở mặt trước; LM393 ở mặt sau; header ở cạnh dưới'],
+      ['Cách cắm', 'giống MQ-2: chân cắm xuống hàng e, dây cắm vào lỗ cùng cột phía sau cảm biến. AO sang D34 của ESP32'],
+      ['Nguồn', '5V, khoảng 150 mA cho dây nung'],
+      ['Firmware', 'ước tính CO₂ tương đương, mức nền 400 ppm, báo "không khí kém" từ 1500 ppm'],
+      ['Lưu ý nối', 'cũng cần giữ AO dưới 3,3V trước khi vào chân ADC'],
+      ['Vị trí', 'hai module rộng 22 mm (khoảng 9 lỗ) nên cần cắm cách nhau ít nhất 9 cột'],
+    ]],
+    buzzer: ['Còi active buzzer', [
+      ['Cách cắm mới', 'hai chân còi cắm ở hàng f (gần rãnh giữa nhất), hai cột cách nhau 3 số, ví dụ cột 25 và 28. Thân còi che ít lỗ nhất theo cách này'],
+      ['Dây D4', 'cắm vào lỗ i hoặc j của cột 25 (cùng cột, cùng nửa với chân +), đầu kia vào chân D4 của ESP32'],
+      ['Dây GND', 'cắm vào lỗ i hoặc j của cột 28 (cùng cột với chân −), đầu kia vào thanh − của breadboard, đúng thanh đã nối GND của ESP32. Hoặc dùng dây đực–cái từ chân GND còn trống bên phải ESP32 tới lỗ đó'],
+      ['Cách cắm cũ', 'chân + ở e25, chân − ở e27: hai cột khác nhau nên không chập, nhưng cột 27 chưa nối GND nên mạch hở, dòng dừng ở chân − và còi không kêu dù D4 có tín hiệu'],
+      ['Kích thước', 'thường ø12 × 9,5 mm, chân cách nhau 7,6 mm, đúng 3 lỗ breadboard'],
+      ['Điện áp', 'loại 5V thường chạy từ 3,5 đến 5,5V, tiếng ít nhất 95 dB ở 10 cm. Cấp 3,3V từ GPIO thì nhỏ hơn'],
+      ['Firmware', 'gas vượt ngưỡng: bíp nhanh (150 ms bật, 150 ms tắt). Không khí kém: bíp chậm (200 ms mỗi 2 giây). Khởi động: 3 tiếng dài'],
+      ['Tem', 'bóc miếng tem niêm phong trên miệng còi nếu có'],
+    ]],
+    tank: ['Bình gas (minh họa)', [
+      ['Vai trò', 'nguồn rò khí cho tình huống "Rò gas": khí thoát ra ở chỗ nối van và bộ điều áp rồi lan tới cảm biến MQ-2'],
+      ['Tỉ lệ', 'thu nhỏ để vừa khung hình, không theo kích thước bình thật'],
+      ['Thực tế', 'khí LPG nặng hơn không khí nên thường đọng sát sàn. Cảm biến báo gas nên đặt thấp và gần bếp'],
+      ['Thử an toàn', 'dùng bật lửa gas xì nhẹ (không châm lửa) ở nơi thoáng, đừng thử bằng bình gas thật'],
+    ]],
+    candle: ['Nến và khói (minh họa)', [
+      ['Vai trò', 'nguồn làm "Không khí kém": khói và CO₂ từ ngọn nến bay lên rồi tới cảm biến MQ-135'],
+      ['Thực tế', 'MQ-135 phản ứng với CO₂, khói, hơi cồn, NH₃. Phòng kín nhiều người thở cũng làm CO₂ tăng'],
+      ['Thử an toàn', 'thổi hơi thở vào gần cảm biến hoặc để gần khói nhang trong thời gian ngắn'],
+    ]],
+    bread: ['Breadboard 400 điểm', [
+      ['Kích thước', 'khoảng 82 × 55 mm, 30 cột, hai ray nguồn ở mỗi cạnh'],
+      ['Nối thông', 'mỗi nhóm 5 lỗ a–e (và nhóm 5 lỗ f–j) thông với nhau. Rãnh giữa ngắt mạch. Mỗi ray nguồn thông suốt chiều dài'],
+      ['Trong mô hình', 'thanh nguồn trước nhận 5V và GND từ ESP32. Hai cảm biến lấy nguồn ở thanh nguồn sau, nên có hai dây ở mép trái nối thanh + sau với thanh + trước và thanh − sau với thanh − trước. Thiếu hai dây này thì cảm biến không có điện'],
+    ]],
+  };
+  function showInfo(k) {
+    if (!INFO[k]) return;
+    const box = $('info'); box.textContent = '';
+    const h = document.createElement('h2'); h.textContent = INFO[k][0];
+    const ul = document.createElement('ul'); ul.className = 'specs';
+    INFO[k][1].forEach(([a, b]) => {
+      const li = document.createElement('li');
+      const bb = document.createElement('b'); bb.textContent = a;
+      const sp = document.createElement('span'); sp.textContent = b;
+      li.append(bb, sp); ul.appendChild(li);
+    });
+    box.append(h, ul);
+  }
+
+  /* ======================= bảng chân và nút điều khiển ======================= */
+  function renderMap() {
+    const now = state.fw === 'now', ok = state.buz === 'ok';
+    const rows = [
+      ['MQ-2 · chân AO', 'D35 (GPIO35)', now ? 'GPIO36 (VP)' : 'GPIO35 (D35)', !now],
+      ['MQ-135 · chân AO', 'D34 (GPIO34)', now ? 'GPIO39 (VN)' : 'GPIO34 (D34)', !now],
+      ['Còi · chân +', 'D4 (GPIO4)', 'GPIO4', true],
+      ['Còi · chân −', ok ? 'GND (qua thanh −)' : 'chưa nối GND', 'GND', ok],
+      ['Cấp nguồn 5V', 'VIN', 'VIN', true],
+      ['Nối đất', 'GND', 'GND', true],
+    ];
+    const body = $('mapBody'); body.textContent = '';
+    rows.forEach(r => {
+      const tr = document.createElement('tr');
+      [r[0], r[1], r[2]].forEach((t, i) => {
+        const td = document.createElement('td'); td.textContent = t;
+        if (i > 0) td.className = 'mono'; tr.appendChild(td);
+      });
+      const td = document.createElement('td');
+      td.textContent = r[3] ? 'Khớp' : 'Lệch'; td.className = r[3] ? 'good' : 'bad';
+      tr.appendChild(td); body.appendChild(tr);
+    });
+    $('mapNote').textContent = now
+      ? 'Firmware đang đọc GPIO36 và GPIO39, hai chân để trống, trong khi cảm biến nằm ở D35 và D34. Số đọc vì thế là nhiễu và có thể báo động giả. Để firmware đọc đúng chân: đặt GAS_ADC_PIN = 35 với ADC channel 7 (MQ-2), AQ_ADC_PIN = 34 với ADC channel 6 (MQ-135), rồi build và nạp lại. Cả hai chân thuộc ADC1 nên dùng được khi bật Wi-Fi.'
+      : 'Sau khi sửa, firmware đọc MQ-2 ở GPIO35 (ADC1 channel 7) và MQ-135 ở GPIO34 (ADC1 channel 6), đúng chỗ bạn đã cắm. Số đọc lúc này phản ứng theo khí thật.';
+  }
+  function setPressed(container, v) {
+    container.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === v)));
+  }
+  let three = null;
+  $('segScenario').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    state.scenario = b.dataset.v; setPressed($('segScenario'), state.scenario);
+    if (state.source === 'live') {
+      const mode = { normal: 'off', gas: 'gas', air: 'air' }[state.scenario];
+      const label = { off: 'tắt giả lập', gas: 'giả lập rò gas', air: 'giả lập không khí kém' }[mode];
+      sendCmd({ sim: mode, duration: +$('simDur').value, discord: $('simDiscord').checked }, 'Đã gửi lệnh ' + label);
+    }
+  });
+  $('segView').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    selectView(b.dataset.v);
+  });
+  $('btnPower').addEventListener('click', () => { pw0 = performance.now(); sim.g = target[state.scenario].g; sim.a = target[state.scenario].a; });
+  function selectView(v) {
+    state.view = v; setPressed($('segView'), v);
+    if (v !== 'overview') showInfo(v);
+    if (three) three.flyTo(v);
+  }
+  function updateBadge() {
+    const b = $('badge');
+    if (state.buz === 'open') {
+      b.hidden = false;
+      b.textContent = 'Còi: chân − ở cột 27 chưa nối sang GND nên mạch hở. D4 có tín hiệu nhưng còi không kêu.';
+    } else b.hidden = true;
+  }
+
+  /* ======================= thiết bị thật qua MQTT (WebSocket) ======================= */
+  /* Hợp đồng lệnh cho firmware (sẽ thêm ở bản nạp tới):
+     airgas/<dev>/cmd   {"sim":"gas"|"air"|"off","duration":60,"discord":true}
+                        {"wifi":{"ssid":"...","pass":"..."}} · {"broker":"mqtt://ip:1883"} · {"recalibrate":true}
+                        {"discord_webhook":"https://discord.com/api/webhooks/..."}
+     airgas/<dev>/ack   {"cmd":"sim","ok":true,"msg":"..."}
+     airgas/<dev>/info  (retained) {"fw":"1.1.0","ip":"...","rssi":-60,"sim":"off"} */
+  state.source = 'sim';
+  const live = { client: null, connected: false, dev: 'Gas-Monitor-01', g: null, a: null, status: '', lastMsg: 0, info: null };
+  const LS = {
+    get(k, d) { try { return localStorage.getItem(k) || d; } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* storage blocked */ } },
+  };
+  $('brokerUrl').value = LS.get('airgas.broker', 'ws://localhost:9001');
+  $('devName').value = LS.get('airgas.dev', 'Gas-Monitor-01');
+  const pill = (id, text, cls) => { const e = $(id); e.textContent = text; e.className = 'pill' + (cls ? ' ' + cls : ''); };
+  const liveFresh = () => !!live.lastMsg && performance.now() - live.lastMsg < 5000;
+
+  function logMsg(dir, topic, payload) {
+    const li = document.createElement('li');
+    const ts = new Date().toLocaleTimeString('vi-VN', { hour12: false });
+    [ts, dir === 'in' ? '◀' : '▶', topic + '  ' + payload].forEach((t, i) => {
+      const sp = document.createElement('span'); sp.textContent = t; if (i === 1) sp.className = dir; li.appendChild(sp);
+    });
+    const box = $('log'); box.prepend(li);
+    while (box.children.length > 80) box.lastChild.remove();
+  }
+  function updateLiveUi() {
+    pill('stBroker', live.connected ? 'đã kết nối' : (live.client ? 'đang kết nối…' : 'chưa kết nối'), live.connected ? 'good' : '');
+    const st = live.status;
+    pill('stDevice', st === 'online' ? 'online' : st === 'offline' ? 'offline' : 'chưa rõ', st === 'online' ? 'good' : st === 'offline' ? 'bad' : '');
+    $('stFw').textContent = live.info && live.info.fw ? 'bản ' + live.info.fw : 'chưa báo phiên bản (firmware cũ)';
+    $('btnConnect').disabled = !!live.client;
+    $('btnDisconnect').disabled = !live.client;
+  }
+  function connectLive() {
+    if (!window.mqtt) { $('cmdNote').textContent = 'Không tải được thư viện MQTT. Máy cần có Internet để tải thư viện từ CDN.'; return; }
+    const url = $('brokerUrl').value.trim();
+    live.dev = $('devName').value.trim() || 'Gas-Monitor-01';
+    LS.set('airgas.broker', url); LS.set('airgas.dev', live.dev);
+    live.g = live.a = live.info = null; live.status = ''; live.lastMsg = 0;
+    $('mqG').textContent = 'chưa có dữ liệu'; $('mqA').textContent = 'chưa có dữ liệu';
+    const c = mqtt.connect(url, { clientId: 'airgas-web-' + Math.random().toString(16).slice(2, 8), reconnectPeriod: 3000, connectTimeout: 6000, clean: true });
+    live.client = c;
+    c.on('connect', () => {
+      live.connected = true;
+      c.subscribe([`airgas/${live.dev}/#`, `airquality/${live.dev}/#`], { qos: 0 });
+      logMsg('out', 'subscribe', `airgas/${live.dev}/#, airquality/${live.dev}/#`);
+      updateLiveUi();
+    });
+    c.on('reconnect', updateLiveUi);
+    c.on('close', () => { live.connected = false; updateLiveUi(); });
+    c.on('error', err => { $('cmdNote').textContent = 'Lỗi kết nối broker: ' + (err && err.message ? err.message : err); });
+    c.on('message', (topic, buf) => onMsg(topic, buf.toString()));
+    updateLiveUi();
+  }
+  function disconnectLive() {
+    if (live.client) live.client.end(true);
+    live.client = null; live.connected = false; updateLiveUi();
+  }
+  function onMsg(topic, text) {
+    if (!/\/cmd$/.test(topic)) logMsg('in', topic, text);
+    const parts = topic.split('/'), kind = parts[2];
+    let j = null; try { j = JSON.parse(text); } catch (e) { /* plain text payload */ }
+    if (parts[0] === 'airgas' && kind === 'reading' && j) {
+      live.g = { ppm: +j.ppm || 0, mv: +j.mv || 0, alarm: !!j.alarm, sim: !!j.sim, fault: !!j.fault };
+      live.lastMsg = performance.now(); $('mqG').textContent = text;
+    } else if (parts[0] === 'airquality' && kind === 'reading' && j) {
+      live.a = { co2: +j.co2_ppm || 400, mv: +j.mv || 0, poor: !!j.poor, sim: !!j.sim, fault: !!j.fault };
+      live.lastMsg = performance.now(); $('mqA').textContent = text;
+    } else if (kind === 'status') {
+      live.status = text.trim();
+    } else if (kind === 'info' && j) {
+      live.info = j;
+    } else if (kind === 'ack' && j) {
+      $('cmdNote').textContent = (j.ok ? 'Thiết bị đã nhận lệnh ' : 'Thiết bị từ chối lệnh ') + (j.cmd || '') + (j.msg ? ': ' + j.msg : '');
+    }
+    updateLiveUi();
+  }
+  function sendCmd(obj, label) {
+    if (!live.client || !live.connected) { $('cmdNote').textContent = 'Chưa kết nối broker, bấm "Kết nối" trước.'; return; }
+    const topic = `airgas/${live.dev}/cmd`, payload = JSON.stringify(obj);
+    live.client.publish(topic, payload, { qos: 1 });
+    const shown = obj.wifi ? JSON.stringify({ wifi: { ssid: obj.wifi.ssid, pass: '••••' } })
+      : obj.discord_webhook ? JSON.stringify({ discord_webhook: obj.discord_webhook.replace(/\/[\w-]+$/, '/••••') }) : payload;
+    logMsg('out', topic, shown);
+    $('cmdNote').textContent = label + (live.info ? '' : '. Thiết bị chưa báo hỗ trợ lệnh (firmware cũ), lệnh có thể bị bỏ qua.');
+  }
+  /* buttons that change the device need a second click within 4 s */
+  function armed(btn, fn) {
+    if (btn.dataset.armed) {
+      delete btn.dataset.armed; btn.classList.remove('arm'); btn.textContent = btn.dataset.label; fn(); return;
+    }
+    btn.dataset.label = btn.textContent; btn.dataset.armed = '1'; btn.classList.add('arm'); btn.textContent = 'Bấm lần nữa để gửi';
+    setTimeout(() => { if (btn.dataset.armed) { delete btn.dataset.armed; btn.classList.remove('arm'); btn.textContent = btn.dataset.label; } }, 4000);
+  }
+
+  /* ---------- Discord: gửi từ trình duyệt ở chế độ mô phỏng, hoặc lưu webhook vào thiết bị ---------- */
+  const WEBHOOK_RE = /^https:\/\/(?:discord\.com|discordapp\.com|canary\.discord\.com|ptb\.discord\.com)\/api\/webhooks\/\d+\/[\w-]+$/;
+  $('dcUrl').value = LS.get('airgas.webhook', '');
+  $('dcEnable').checked = LS.get('airgas.webhookOn', '1') === '1';
+  $('dcUrl').addEventListener('change', () => LS.set('airgas.webhook', $('dcUrl').value.trim()));
+  $('dcEnable').addEventListener('change', () => LS.set('airgas.webhookOn', $('dcEnable').checked ? '1' : '0'));
+  $('dcShow').addEventListener('change', () => { $('dcUrl').type = $('dcShow').checked ? 'text' : 'password'; });
+  const dcNote = t => { $('dcNote').textContent = t; };
+  const devLabel = () => ($('devName').value.trim() || 'Gas-Monitor-01');
+  async function postDiscord(content) {
+    const url = $('dcUrl').value.trim();
+    if (!WEBHOOK_RE.test(url)) { dcNote('Link webhook không đúng dạng https://discord.com/api/webhooks/<số>/<mã>.'); return false; }
+    try {
+      const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content }) });
+      if (r.ok) { dcNote('Đã gửi tin Discord lúc ' + new Date().toLocaleTimeString('vi-VN', { hour12: false }) + '.'); return true; }
+      dcNote(r.status === 429 ? 'Discord đang giới hạn tần suất gửi, thử lại sau vài giây.'
+        : (r.status === 401 || r.status === 404) ? 'Discord từ chối link webhook (link sai hoặc webhook đã bị xóa).'
+        : 'Discord trả lỗi ' + r.status + '.');
+    } catch (e) {
+      dcNote('Không gửi được tới Discord (mất mạng hoặc trình duyệt chặn).');
+    }
+    return false;
+  }
+  $('dcTest').addEventListener('click', () => {
+    postDiscord(`**${devLabel()}** - [THỬ] tin nhắn thử từ trang Air Gas Monitor Live.`);
+  });
+  $('dcToDevice').addEventListener('click', e => {
+    const url = $('dcUrl').value.trim();
+    if (!WEBHOOK_RE.test(url)) { dcNote('Nhập link webhook đúng dạng trước.'); return; }
+    if (state.source !== 'live' || !live.connected) { dcNote('Chuyển sang "Thiết bị thật (MQTT)" và kết nối broker trước.'); return; }
+    armed(e.currentTarget, () => { sendCmd({ discord_webhook: url }, 'Đã gửi webhook Discord mới cho thiết bị'); dcNote('Đã gửi webhook xuống thiết bị (cần firmware mới để thiết bị lưu).'); });
+  });
+  /* mô phỏng: gửi khi báo động vừa bật, mỗi loại cách nhau ít nhất 60 giây như firmware */
+  const dcPrev = { alarm: false, poor: false }, dcLast = { alarm: -1e9, poor: -1e9 };
+  function discordWatch(alarm, poor, pg, pa, mvG, mvA) {
+    const now = performance.now();
+    [['alarm', alarm, () => `**${devLabel()}** - [GIẢ LẬP] GAS ALARM **~${Math.round(pg)} ppm** (threshold 1000 ppm, raw ${mvG} mV)`],
+     ['poor', poor, () => `**${devLabel()}** - [GIẢ LẬP] KHÔNG KHÍ KÉM **~${Math.round(pa)} ppm CO2eq** (threshold 1500 ppm, raw ${mvA} mV)`]]
+      .forEach(([k, on, msg]) => {
+        if (on && !dcPrev[k] && $('dcEnable').checked && $('dcUrl').value.trim() && now - dcLast[k] > 60000) {
+          dcLast[k] = now; postDiscord(msg());
+        }
+        dcPrev[k] = on;
+      });
+  }
+  $('btnConnect').addEventListener('click', connectLive);
+  $('btnDisconnect').addEventListener('click', disconnectLive);
+  $('btnWifi').addEventListener('click', e => {
+    const ssid = $('wifiSsid').value.trim(), pass = $('wifiPass').value;
+    if (!ssid) { $('cmdNote').textContent = 'Nhập tên Wi-Fi trước.'; return; }
+    if (pass && pass.length < 8) { $('cmdNote').textContent = 'Mật khẩu Wi-Fi WPA2 phải có ít nhất 8 ký tự.'; return; }
+    armed(e.currentTarget, () => sendCmd({ wifi: { ssid, pass } }, 'Đã gửi Wi-Fi mới "' + ssid + '"'));
+  });
+  $('btnBroker').addEventListener('click', e => {
+    const uri = $('newBroker').value.trim();
+    if (!/^mqtts?:\/\/[^\s:]+(:\d+)?$/.test(uri)) { $('cmdNote').textContent = 'Địa chỉ broker có dạng mqtt://192.168.1.14:1883'; return; }
+    armed(e.currentTarget, () => sendCmd({ broker: uri }, 'Đã gửi địa chỉ broker ' + uri));
+  });
+  $('btnRecal').addEventListener('click', e => {
+    armed(e.currentTarget, () => sendCmd({ recalibrate: true }, 'Đã gửi lệnh hiệu chuẩn lại. Giữ cảm biến ở nơi không khí sạch khoảng 10 giây'));
+  });
+  const SCEN_TEXT = { sim: ['Không khí sạch', 'Rò gas', 'Không khí kém'], live: ['Tắt giả lập', 'Giả lập rò gas', 'Giả lập không khí kém'] };
+  function setSource(v) {
+    state.source = v; setPressed($('segSource'), v);
+    const isLive = v === 'live';
+    $('livePanel').hidden = !isLive; $('logPanel').hidden = !isLive; $('grpPower').hidden = isLive;
+    $('scenLabel').textContent = isLive ? 'Giả lập trên thiết bị' : 'Tình huống';
+    $('segScenario').querySelectorAll('button').forEach((b, i) => { b.textContent = SCEN_TEXT[v][i]; });
+    state.scenario = 'normal'; setPressed($('segScenario'), 'normal');
+    $('mqG').textContent = isLive ? (live.g ? $('mqG').textContent : 'chưa có dữ liệu') : 'đang chờ kết nối…';
+    $('mqA').textContent = isLive ? (live.a ? $('mqA').textContent : 'chưa có dữ liệu') : 'đang chờ kết nối…';
+    updateLiveUi();
+  }
+  $('segSource').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setSource(b.dataset.v); });
+  updateLiveUi();
+
+  /* ======================= cảnh 3D ======================= */
+  function initScene() {
+    if (!THREE || !OrbitControls) return null;
+    const canvas = $('gl');
+    let renderer;
+    try { renderer = new THREE.WebGLRenderer({ canvas, antialias: true }); } catch (e) { return null; }
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 0.95;
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(38, 1.6, 1, 2000);
+    const VIEWS = {
+      overview: { p: [-12, 128, 168], t: [-12, 16, 4] },
+      tank: { p: [-60, 96, 150], t: [-58, 42, 0] },
+      candle: { p: [12, 62, 132], t: [10, 24, 30] },
+      esp32: { p: [84, 62, 78], t: [80, 3, 8] },
+      mq2: { p: [-15, 52, 66], t: [-15, 26, 8] },
+      mq135: { p: [8, 52, 66], t: [8, 26, 8] },
+      buzzer: { p: [31, 44, 54], t: [30, 12, 5] },
+      bread: { p: [0, 100, 74], t: [0, 6, 4] },
+    };
+    camera.position.set(...VIEWS.overview.p);
+    const controls = new OrbitControls(camera, canvas);
+    controls.target.set(...VIEWS.overview.t);
+    controls.enableDamping = true; controls.dampingFactor = 0.08;
+    controls.maxPolarAngle = Math.PI * 0.49; controls.minDistance = 22; controls.maxDistance = 320;
+    controls.autoRotate = false;
+    controls.addEventListener('start', () => { controls.autoRotate = false; tween = null; });
+    let tween = null;
+
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x8f9aa2, 0.7));
+    const sun = new THREE.DirectionalLight(0xffffff, 1.7);
+    sun.position.set(-50, 150, 100); sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    Object.assign(sun.shadow.camera, { left: -170, right: 140, top: 130, bottom: -110, near: 10, far: 460 });
+    sun.shadow.bias = -0.0006;
+    scene.add(sun);
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    scene.environment = pmrem.fromScene(new ADD.RoomEnvironment(), 0.04).texture;
+    scene.environmentIntensity = 0.4;
+    pmrem.dispose();
+    /* HDR emissive colours (> 1) are the only things bright enough to pass the bloom threshold */
+    const composer = new ADD.EffectComposer(renderer);
+    composer.addPass(new ADD.RenderPass(scene, camera));
+    const bloom = new ADD.UnrealBloomPass(new THREE.Vector2(512, 512), 0.55, 0.4, 1.4);
+    composer.addPass(bloom);
+    composer.addPass(new ADD.OutputPass());
+    const hdrC = (hex, k) => new THREE.Color(hex).multiplyScalar(k * 3);
+
+    /* ---------- helpers ---------- */
+    const maxAniso = renderer.capabilities.getMaxAnisotropy();
+    const mat = (color, rough = 0.6, metal = 0) => new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: metal });
+    const box = (w, h, d, m) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.castShadow = true; o.receiveShadow = true; return o; };
+    const cvs = (w, h, draw) => { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), c); return c; };
+    const tex = c => { const t = new THREE.CanvasTexture(c); t.anisotropy = maxAniso; t.colorSpace = THREE.SRGBColorSpace; return t; };
+    const group = (info, parent) => { const g = new THREE.Group(); g.userData.info = info; if (parent) parent.add(g); return g; };
+    const tagInfo = (g, info) => g.traverse(o => { o.userData.info = info; });
+
+    const tableMat = new THREE.MeshStandardMaterial({ color: 0xc7ced3, roughness: 1 });
+    const table = new THREE.Mesh(new THREE.PlaneGeometry(1200, 900), tableMat);
+    table.rotation.x = -Math.PI / 2; table.receiveShadow = true; scene.add(table);
+
+    /* ---------- breadboard 400 điểm ---------- */
+    const bread = group('bread', scene);
+    const bbBody = box(82, BB_TOP, 55, mat(0xe8e5dc, 0.7));
+    bbBody.position.set(0, BB_TOP / 2, 0); bread.add(bbBody);
+    const S = 16;
+    const bbTex = tex(cvs(82 * S, 55 * S, x => {
+      const px = X => (X + 41) * S, pz = Z => (Z + 27.5) * S;
+      x.fillStyle = '#ebe8df'; x.fillRect(0, 0, 82 * S, 55 * S);
+      x.fillStyle = '#d2cec1'; x.fillRect(px(-38), pz(-1.7), 76 * S, 3.4 * S);
+      [[-25.2, '#d93a2f'], [-17.4, '#2f6fd6'], [17.4, '#2f6fd6'], [25.2, '#d93a2f']].forEach(([z, c]) => { x.fillStyle = c; x.fillRect(px(-37), pz(z) - 1.2, 74 * S, 2.4); });
+      x.fillStyle = '#6a675c';
+      const hole = (X, Z) => x.fillRect(px(X) - 0.5 * S, pz(Z) - 0.5 * S, 1.0 * S, 1.0 * S);
+      for (let n = 1; n <= 30; n++) for (const r in ROWZ) hole(colX(n), ROWZ[r]);
+      railXs.forEach(X => [-22.5, -19.9, 19.9, 22.5].forEach(Z => hole(X, Z)));
+      x.fillStyle = '#8b887d'; x.font = 'bold 14px monospace'; x.textAlign = 'center';
+      [1, 5, 10, 15, 20, 25, 30].forEach(n => { x.fillText(String(n), px(colX(n)), pz(-16.2)); x.fillText(String(n), px(colX(n)), pz(17.3)); });
+      Object.keys(ROWZ).forEach(r => x.fillText(r, px(-39.4), pz(ROWZ[r]) + 5));
+      x.font = 'bold 18px monospace';
+      x.fillStyle = '#d93a2f'; x.fillText('+', px(-39.4), pz(-22.5) + 6); x.fillText('+', px(-39.4), pz(22.5) + 6);
+      x.fillStyle = '#2f6fd6'; x.fillText('−', px(-39.4), pz(-19.9) + 6); x.fillText('−', px(-39.4), pz(19.9) + 6);
+    }));
+    const bbTop = new THREE.Mesh(new THREE.PlaneGeometry(82, 55), new THREE.MeshStandardMaterial({ map: bbTex, roughness: 0.75 }));
+    bbTop.rotation.x = -Math.PI / 2; bbTop.position.y = BB_TOP + 0.02; bbTop.receiveShadow = true; bread.add(bbTop);
+    tagInfo(bread, 'bread');
+
+    /* ---------- MQ module đứng trên chân cắm ---------- */
+    const modules = [];
+    const goldMat = mat(0xd4af37, 0.28, 1);
+    function makeModule(c0, name, info, doThresh, aoColor) {
+      /* Module cắm thẳng 4 chân header xuống hàng e của breadboard, lưới cảm biến quay ra trước.
+         Dây cắm vào các lỗ cùng cột ở phía sau cảm biến (hàng a–d), không cắm vào chân module. */
+      const cx = (colX(c0) + colX(c0 + 3)) / 2;
+      const g = group(info, scene);
+      g.position.set(cx, 0, ROWZ.e);
+      const py = BB_TOP + 2.5;
+      const pcb = box(22, 32, 1.6, new THREE.MeshPhysicalMaterial({ color: 0x1d5aa8, roughness: 0.42, clearcoat: 0.7, clearcoatRoughness: 0.25 }));
+      pcb.position.set(0, py + 16, 0); g.add(pcb);
+      const PIN_DX = [-3.81, -1.27, 1.27, 3.81];            /* VCC, GND, DO, AO nhìn từ mặt trước */
+      /* silkscreen mặt trước */
+      const frontTex = tex(cvs(528, 768, x => {
+        x.clearRect(0, 0, 528, 768); x.fillStyle = '#fff'; x.textAlign = 'center';
+        x.font = '700 30px sans-serif'; x.fillText(name, (11 - 2.2) * 24, 768 - 34);
+        x.font = '600 20px monospace'; x.globalAlpha = 0.9;
+        x.fillText('PWR', (11 - 8.4 + 4.2) * 24, (32 - 8.6) * 24 + 7);
+        x.fillText('DO', (11 - 8.4 + 4.2) * 24, (32 - 5.2) * 24 + 7);
+      }));
+      const front = new THREE.Mesh(new THREE.PlaneGeometry(22, 32), new THREE.MeshBasicMaterial({ map: frontTex, transparent: true }));
+      front.position.set(0, py + 16, 0.82); g.add(front);
+      /* silkscreen mặt sau (mặt phẳng quay 180° nên chữ đọc đúng khi nhìn từ sau) */
+      const backTex = tex(cvs(528, 768, x => {
+        x.clearRect(0, 0, 528, 768); x.fillStyle = '#fff'; x.textAlign = 'center'; x.font = '600 22px monospace';
+        ['VCC', 'GND', 'DO', 'AO'].forEach((p, i) => { x.globalAlpha = p === 'DO' ? 0.55 : 0.95; x.fillText(p, (11 - PIN_DX[i]) * 24, (32 - 2.2) * 24); });
+        x.globalAlpha = 0.6; x.font = '500 16px monospace'; x.fillText('LM393', (11 + 4) * 24, (32 - 15.5) * 24);
+      }));
+      const back = new THREE.Mesh(new THREE.PlaneGeometry(22, 32), new THREE.MeshBasicMaterial({ map: backTex, transparent: true }));
+      back.rotation.y = Math.PI; back.position.set(0, py + 16, -0.82); g.add(back);
+      /* mặt sau: LM393, điện trở, header và chân */
+      const chip = box(5, 4, 1.4, mat(0x14181b, 0.4)); chip.position.set(-4, py + 14, -1.5); g.add(chip);
+      [[3, 18], [-2, 20], [6, 21]].forEach(([u, v]) => { const r = box(2, 1, 0.5, mat(0xd8dde1, 0.5)); r.position.set(u, py + v, -1.05); g.add(r); });
+      /* header: khối nhựa đen nằm trên mặt breadboard, 4 chân cắm xuống lỗ hàng e */
+      const hdrBlock = box(10.2, 2.5, 2.5, mat(0x15181b, 0.5)); hdrBlock.position.set(0, BB_TOP + 1.25, 0); g.add(hdrBlock);
+      PIN_DX.forEach(dx => { const p = box(0.64, 1.2, 0.64, goldMat); p.position.set(dx, BB_TOP + 0.3, 0); g.add(p); });
+      /* mặt trước: biến trở và 2 LED */
+      const pot = box(9, 4.6, 4.6, mat(0x3b82e0, 0.45)); pot.position.set(5.6, py + 5.6, 2.5); g.add(pot);
+      const dial = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 0.5, 20), mat(0xe9eef3, 0.4));
+      dial.rotation.x = Math.PI / 2; dial.position.set(5.6, py + 5.6, 4.95); g.add(dial);
+      const pwr = box(3, 1.8, 1, new THREE.MeshBasicMaterial({ color: hdrC(0xff5a4d, 1.6) })); pwr.position.set(-8.4, py + 8.6, 1.2); g.add(pwr);
+      const doOffC = new THREE.Color(0x5a2420), doOnC = hdrC(0xff6a5c, 2.2);
+      const doMat = new THREE.MeshBasicMaterial({ color: doOffC.clone() });
+      const doLed = box(3, 1.8, 1, doMat); doLed.position.set(-8.4, py + 5.2, 1.2); g.add(doLed);
+      /* cảm biến: vòng đế, lưới thép, dây nung nhìn xuyên qua lưới */
+      const canY = py + 21, canZ0 = 0.8;
+      const ring = new THREE.Mesh(new THREE.CylinderGeometry(9.4, 9.4, 1.6, 40), mat(0xd2d6d9, 0.28, 0.95));
+      ring.rotation.x = Math.PI / 2; ring.position.set(0, canY, canZ0 + 0.8); g.add(ring);
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(8.2, 8.2, 10, 40, 1, true), mat(0xc3c8cc, 0.32, 0.95));
+      cap.rotation.x = Math.PI / 2; cap.position.set(0, canY, canZ0 + 1.6 + 5); g.add(cap);
+      const heatMat = new THREE.MeshBasicMaterial({ color: hdrC(0xff7a12, 0.8), transparent: true, opacity: 0 });
+      const heatDisc = new THREE.Mesh(new THREE.CircleGeometry(7.6, 32), heatMat);
+      heatDisc.position.set(0, canY, canZ0 + 1.6 + 8.5); g.add(heatDisc);
+      const meshTex = tex(cvs(256, 256, x => {
+        x.clearRect(0, 0, 256, 256); x.strokeStyle = '#5a6268'; x.lineWidth = 3;
+        for (let i = -256; i < 512; i += 12) { x.beginPath(); x.moveTo(i, 0); x.lineTo(i + 256, 256); x.stroke(); x.beginPath(); x.moveTo(i + 256, 0); x.lineTo(i, 256); x.stroke(); }
+      }));
+      const top = new THREE.Mesh(new THREE.CircleGeometry(8.2, 40), new THREE.MeshStandardMaterial({ color: 0xcfd4d8, map: meshTex, transparent: true, roughness: 0.35, metalness: 0.9, alphaTest: 0.05 }));
+      top.position.set(0, canY, canZ0 + 1.6 + 10.05); g.add(top);
+      const light = new THREE.PointLight(0xff7a12, 0, 70, 2);
+      light.position.set(0, canY, canZ0 + 14); g.add(light);
+      g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+      tagInfo(g, info);
+      const world = new THREE.Vector3(cx, canY, ROWZ.e + canZ0 + 8);
+      const m = { g, cx, heatMat, light, doMat, doOffC, doOnC, doThresh, world };
+      modules.push(m);
+      return m;
+    }
+    const mq2 = makeModule(8, 'MQ-2', 'mq2', 1300, 0xe2b100);
+    const mq135 = makeModule(17, 'MQ-135', 'mq135', 600, 0xee7a00);
+
+    /* ---------- còi active ø12 x 9,5 mm, chân cách 7,6 mm ---------- */
+    const bz = group('buzzer', scene);
+    const bzBody = new THREE.Group(); bz.add(bzBody);
+    const bzCyl = new THREE.Mesh(new THREE.CylinderGeometry(6, 6, 9.5, 40), mat(0x20252a, 0.5));
+    bzCyl.castShadow = true; bzBody.add(bzCyl);
+    const bzTopMat = new THREE.MeshStandardMaterial({ color: 0x15191c, roughness: 0.6 });
+    const bzTop = new THREE.Mesh(new THREE.CircleGeometry(5.6, 40), bzTopMat); bzTop.rotation.x = -Math.PI / 2; bzTop.position.y = 4.76; bzBody.add(bzTop);
+    const bzHole = new THREE.Mesh(new THREE.CircleGeometry(1.3, 20), new THREE.MeshBasicMaterial({ color: 0x050607 })); bzHole.rotation.x = -Math.PI / 2; bzHole.position.y = 4.78; bzBody.add(bzHole);
+    const plusTex = tex(cvs(64, 64, x => { x.fillStyle = '#e8edf0'; x.font = '700 56px monospace'; x.textAlign = 'center'; x.fillText('+', 32, 48); }));
+    const bzPlus = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 2.6), new THREE.MeshBasicMaterial({ map: plusTex, transparent: true }));
+    bzPlus.rotation.x = -Math.PI / 2; bzPlus.position.set(-3.6, 4.8, 0); bzBody.add(bzPlus);
+    const legsG = new THREE.Group(); scene.add(legsG);
+    const shortStrip = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.25, (ROWZ.j - ROWZ.f) + 3), new THREE.MeshBasicMaterial({ color: 0xffb347, transparent: true, opacity: 0.65 }));
+    shortStrip.position.set(colX(27), BB_TOP + 0.15, (ROWZ.j + ROWZ.f) / 2); scene.add(shortStrip);
+    const rings = [0, 1, 2].map(() => {
+      const m = new THREE.Mesh(new THREE.RingGeometry(1, 1.5, 48), new THREE.MeshBasicMaterial({ color: hdrC(0xd9482b, 1.2), transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false }));
+      m.rotation.x = -Math.PI / 2; scene.add(m); return m;
+    });
+    const bzGndWire = [];
+    function placeBuzzer(mode) {
+      legsG.clear();
+      const ok = mode === 'ok';
+      const pts = [[colX(25), ROWZ.f], [colX(ok ? 28 : 27), ROWZ.f]];
+      const cx = (pts[0][0] + pts[1][0]) / 2, cz = ROWZ.f;
+      const by = BB_TOP + 3.2 + 4.75;
+      bz.position.set(cx, by, cz); bz.userData.base = new THREE.Vector3(cx, by, cz);
+      pts.forEach(([x, z]) => { const l = box(0.7, 5.6, 0.7, goldMat); l.position.set(x, BB_TOP + 1.2 + 1.4, z); legsG.add(l); });
+      shortStrip.visible = !ok;
+      bzGndWire.forEach(w => { w.visible = ok; });
+    }
+
+    /* ---------- dây ---------- */
+    const COL = { red: 0xd93a2f, black: 0x30363b, yellow: 0xe2b100, orange: 0xee7a00, blue: 0x2f6fd6, brown: 0x7b4b2a };
+    const wireGroup = new THREE.Group(); scene.add(wireGroup);
+    const housing = mat(0x15181a, 0.5);
+    function wire(points, color, radius = 0.62) {
+      const curve = new THREE.CatmullRomCurve3(points.map(p => new THREE.Vector3(...p)), false, 'catmullrom', 0.5);
+      const m = new THREE.Mesh(new THREE.TubeGeometry(curve, 72, radius, 10, false), mat(color, 0.42));
+      m.castShadow = true; wireGroup.add(m);
+      return { mesh: m, curve };
+    }
+    function bbPlug(x, z, color) {
+      const o = box(2.5, 5, 2.5, housing); o.position.set(x, BB_TOP + 2.5, z);
+      const band = box(2.56, 1.2, 2.56, mat(color, 0.5)); band.position.set(x, BB_TOP + 4.2, z);
+      const pin = box(0.6, 3, 0.6, goldMat); pin.position.set(x, BB_TOP - 1, z);
+      const g = new THREE.Group(); g.add(o, band, pin); wireGroup.add(g); return g;
+    }
+    const PIN_TOP = 16.2;
+    function espPlug(k, color) {
+      const p = pinPos(k);
+      const o = box(2.6, 12, 2.6, housing); o.position.set(p.x, 4.1 + 6, p.z);
+      const band = box(2.66, 1.2, 2.66, mat(color, 0.5)); band.position.set(p.x, 4.1 + 10.3, p.z);
+      wireGroup.add(o, band);
+    }
+    function jumper(x0, z0, x1, z1, color) {
+      const mid = [(x0 + x1) / 2, BB_TOP + 8, (z0 + z1) / 2];
+      const w = wire([[x0, BB_TOP + 5, z0], [x0, BB_TOP + 8, z0 + (z1 - z0) * 0.2], mid, [x1, BB_TOP + 8, z0 + (z1 - z0) * 0.8], [x1, BB_TOP + 5, z1]], color, 0.55);
+      const a = bbPlug(x0, z0, color), b = bbPlug(x1, z1, color);
+      return { ...w, parts: [w.mesh, a, b] };
+    }
+    const flows = [];
+    const addFlow = (curve, n, dir, kind, extra = {}) => {
+      const dots = [];
+      for (let i = 0; i < n; i++) {
+        const d = new THREE.Mesh(new THREE.SphereGeometry(0.62, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+        wireGroup.add(d); dots.push(d);
+      }
+      const f = { curve, n, dir, dots, t: Math.random(), kind, ...extra }; flows.push(f); return f;
+    };
+
+    /* nguồn cho module: dây cắm vào lỗ cùng cột phía sau chân module, xuống thanh nguồn sau */
+    const BACK_PLUS_Z = -22.5, BACK_MINUS_Z = -19.9;
+    const jv2 = jumper(colX(8), ROWZ.b, railSnap(colX(8) - 2), BACK_PLUS_Z, COL.red);
+    const jg2 = jumper(colX(9), ROWZ.c, railSnap(colX(9) + 3), BACK_MINUS_Z, COL.black);
+    const jv135 = jumper(colX(17), ROWZ.b, railSnap(colX(17) - 2), BACK_PLUS_Z, COL.red);
+    const jg135 = jumper(colX(18), ROWZ.c, railSnap(colX(18) + 3), BACK_MINUS_Z, COL.black);
+    /* hai dây nối thanh nguồn sau với thanh nguồn trước (ESP32 cấp nguồn vào thanh trước) */
+    const brP = jumper(railXs[0], BACK_PLUS_Z, railXs[0], RAIL_PLUS_Z, COL.red);
+    const brN = jumper(railXs[1], BACK_MINUS_Z, railXs[1], RAIL_MINUS_Z, COL.black);
+    const jbz = jumper(colX(28), ROWZ.j, railSnap(35), RAIL_MINUS_Z, COL.brown);
+    jbz.parts.forEach(o => bzGndWire.push(o));
+    addFlow(jv2.curve, 4, -1, 'power'); addFlow(jg2.curve, 4, 1, 'power');
+    addFlow(jv135.curve, 4, -1, 'power'); addFlow(jg135.curve, 4, 1, 'power');
+    addFlow(brP.curve, 6, -1, 'power'); addFlow(brN.curve, 6, 1, 'power');
+    addFlow(jbz.curve, 4, 1, 'power', { only: 'ok' });
+
+    /* long wires: breadboard row j -> ESP32 header pins */
+    function toEsp(x0, z0, k, color, apex) {
+      const p = pinPos(k);
+      const right = PINS[k][0] === 'R';
+      const pts = [[x0, BB_TOP + 5, z0], [x0, 26, z0 - 2], [(x0 + p.x) / 2, apex, (z0 + p.z) / 2 - 6], [p.x - (right ? 12 : 9), apex - 10, p.z], [p.x - (right ? 0 : 0.2), PIN_TOP + 8, p.z], [p.x, PIN_TOP, p.z]];
+      const w = wire(pts, color); bbPlug(x0, z0, color); espPlug(k, color); return w;
+    }
+    const wSig2 = toEsp(colX(11), ROWZ.a, 'g35', COL.yellow, 54);
+    const wSig135 = toEsp(colX(20), ROWZ.a, 'g34', COL.orange, 47);
+    const wBuz = toEsp(colX(25), ROWZ.j, 'g4', COL.blue, 56);
+    function toRail(k, zr, color, midY) {
+      const p = pinPos(k), xr = railSnap(36);
+      const pts = [[p.x, PIN_TOP, p.z], [p.x, 26, p.z - 1], [(p.x + xr) / 2 + 6, midY, (p.z + zr) / 2], [xr + 8, 20, zr + 1.5], [xr, BB_TOP + 5, zr]];
+      const w = wire(pts, color); bbPlug(xr, zr, color); espPlug(k, color); return w;
+    }
+    const wVin = toRail('vin', RAIL_PLUS_Z, COL.red, 30);
+    const wGnd = toRail('gnd', RAIL_MINUS_Z, COL.black, 25);
+    addFlow(wVin.curve, 9, 1, 'power'); addFlow(wGnd.curve, 8, -1, 'power');
+    addFlow(wSig2.curve, 8, 1, 'sig', { src: 'g' }); addFlow(wSig135.curve, 8, 1, 'sig', { src: 'a' });
+    addFlow(wBuz.curve, 7, -1, 'buz');
+
+    /* ---------- ESP32 DevKit V1 ---------- */
+    const esp = group('esp32', scene);
+    esp.position.set(ESP.x, 0, ESP.z);
+    const pcbE = box(ESP.w, 1.6, ESP.l, new THREE.MeshPhysicalMaterial({ color: 0x1b2228, roughness: 0.45, clearcoat: 0.6, clearcoatRoughness: 0.3 })); pcbE.position.y = 0.8; esp.add(pcbE);
+    const US = 20;
+    let espCanvas, espCtx;
+    espCanvas = cvs(Math.round(ESP.w * US), Math.round(ESP.l * US), x => { espCtx = x; });
+    const espTex = new THREE.CanvasTexture(espCanvas); espTex.anisotropy = maxAniso; espTex.colorSpace = THREE.SRGBColorSpace;
+    function drawEspTop() {
+      const x = espCtx, W = espCanvas.width, H = espCanvas.height;
+      x.clearRect(0, 0, W, H);
+      const px = X => (X + ESP.w / 2) * US, pz = Z => (Z + ESP.l / 2) * US;
+      x.strokeStyle = '#c9a64a'; x.lineWidth = 3; x.globalAlpha = 0.9;
+      x.beginPath(); const az = -ESP.l / 2;
+      x.moveTo(px(-6), pz(az + 4.8)); [[6, 4.8], [6, 3.6], [-5, 3.6], [-5, 2.4], [6, 2.4], [6, 1.2], [-5, 1.2]].forEach(([u, v]) => x.lineTo(px(u), pz(az + v)));
+      x.stroke(); x.globalAlpha = 1;
+      x.fillStyle = '#8795a0'; x.font = '600 17px monospace'; x.textAlign = 'center';
+      x.fillText('DOIT ESP32 DEVKIT V1', px(0), pz(ESP.l / 2 - 14.5));
+      const used = ['g35', 'g34', 'g4', 'gnd', 'vin'].map(k => PINS[k][0] + PINS[k][1]);
+      const ghost = state.fw === 'now' ? ['L1', 'L2'] : [];
+      ['L', 'R'].forEach(side => (side === 'L' ? LEFT : RIGHT).forEach((t, i) => {
+        const id = side + i, on = used.includes(id), gh = ghost.includes(id);
+        x.font = (on || gh ? '700 ' : '500 ') + '19px monospace';
+        x.fillStyle = on ? '#ffffff' : gh ? '#ffb347' : '#7f8c96';
+        x.textAlign = side === 'L' ? 'left' : 'right';
+        x.fillText(t, px((side === 'L' ? -11.43 + 1.9 : 11.43 - 1.9)), pz(-17.78 + 2.54 * i) + 6);
+      }));
+      x.textAlign = 'center'; x.font = '500 14px monospace'; x.fillStyle = '#7f8c96';
+      x.fillText('EN', px(-7.8), pz(ESP.l / 2 - 7.4)); x.fillText('BOOT', px(7.8), pz(ESP.l / 2 - 7.4));
+      x.fillText('IO2', px(-6.2), pz(ESP.l / 2 - 15.4) + 5); x.fillText('PWR', px(-6.2), pz(ESP.l / 2 - 11.9) + 5);
+      espTex.needsUpdate = true;
+    }
+    const espTop = new THREE.Mesh(new THREE.PlaneGeometry(ESP.w, ESP.l), new THREE.MeshBasicMaterial({ map: espTex, transparent: true }));
+    espTop.rotation.x = -Math.PI / 2; espTop.position.y = 1.64; esp.add(espTop);
+    const wroom = box(18, 3, 19.5, mat(0xcfd5da, 0.25, 0.95)); wroom.position.set(0, 1.6 + 1.5, -ESP.l / 2 + 6 + 9.75); esp.add(wroom);
+    const wtex = tex(cvs(288, 312, x => { x.fillStyle = '#2a343b'; x.font = '600 22px monospace'; x.textAlign = 'center'; x.fillText('ESP32-WROOM-32', 144, 150); x.font = '400 18px monospace'; x.fillText('Wi-Fi · Bluetooth', 144, 178); }));
+    const wlab = new THREE.Mesh(new THREE.PlaneGeometry(18, 19.5), new THREE.MeshBasicMaterial({ map: wtex, transparent: true }));
+    wlab.rotation.x = -Math.PI / 2; wlab.position.set(0, 3.12, -ESP.l / 2 + 6 + 9.75); esp.add(wlab);
+    [-11.43, 11.43].forEach(x => { const h = box(2.54, 2.5, 15 * 2.54, mat(0x0b0f12, 0.5)); h.position.set(x, 1.6 + 1.25, 0); esp.add(h); });
+    [[-11.43, LEFT], [11.43, RIGHT]].forEach(([x]) => { for (let i = 0; i < 15; i++) { const p = box(0.64, 6, 0.64, goldMat); p.position.set(x, 1.6 + 2.5 + 2.2, -17.78 + 2.54 * i); esp.add(p); } });
+    const ams = box(6.5, 1.6, 3.5, mat(0x0d1113, 0.5)); ams.position.set(6.4, 2.4, ESP.l / 2 - 17); esp.add(ams);
+    const cp = box(5, 0.9, 5, mat(0x0d1113, 0.5)); cp.position.set(0, 2.05, ESP.l / 2 - 11.5); esp.add(cp);
+    [[-7.8, 'en'], [7.8, 'boot']].forEach(([x]) => {
+      const b = box(3.6, 1.6, 3.6, mat(0x2a2f33, 0.5)); b.position.set(x, 2.4, ESP.l / 2 - 7.4); esp.add(b);
+      const c = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, 0.5, 16), mat(0xc9d0d5, 0.4, 0.6)); c.position.set(x, 3.4, ESP.l / 2 - 7.4); esp.add(c);
+    });
+    const usb = box(7.5, 2.8, 5.6, mat(0xc7ced3, 0.22, 1)); usb.position.set(0, 3.0, ESP.l / 2 + 0.6); esp.add(usb);
+    const usbHole = box(5.6, 1.2, 0.4, mat(0x1c2226, 0.6)); usbHole.position.set(0, 3.0, ESP.l / 2 + 3.45); esp.add(usbHole);
+    const cableMat = mat(0x6f7a82, 0.7);
+    const cable = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 1.8, 22, 12), cableMat); cable.rotation.x = Math.PI / 2; cable.position.set(0, 3.0, ESP.l / 2 + 14.6); esp.add(cable);
+    const pwrLed = box(1.8, 0.8, 1.1, new THREE.MeshBasicMaterial({ color: hdrC(0xff4a3d, 3) })); pwrLed.position.set(-6.2, 2.1, ESP.l / 2 - 11.9); esp.add(pwrLed);
+    const ioMat = new THREE.MeshBasicMaterial({ color: 0x1d3f7a });
+    const IO_ON = hdrC(0x7fc1ff, 5), IO_OFF = new THREE.Color(0x1d3f7a);
+    const ioLed = box(1.8, 0.8, 1.1, ioMat); ioLed.position.set(-6.2, 2.1, ESP.l / 2 - 15.4); esp.add(ioLed);
+    const ioLight = new THREE.PointLight(0x4da3ff, 0, 30, 2); ioLight.position.set(-6.2, 6, ESP.l / 2 - 15.4); esp.add(ioLight);
+    tagInfo(esp, 'esp32');
+    drawEspTop();
+
+    /* Wi-Fi arcs above the antenna end */
+    const wifiG = new THREE.Group(); wifiG.position.set(ESP.x, 7, ESP.z - ESP.l / 2 + 2.5); scene.add(wifiG);
+    const wifiArcs = [5, 9, 13].map(r => {
+      const m = new THREE.Mesh(new THREE.TorusGeometry(r, 0.45, 8, 32, Math.PI), new THREE.MeshBasicMaterial({ color: hdrC(0xd9482b, 0.9), transparent: true, opacity: 0.1 }));
+      m.position.y = 3; wifiG.add(m); return m;
+    });
+    /* ghost rings on the pins the firmware reads (VP, VN) */
+    const ghostRings = ['g36', 'g39'].map(k => {
+      const p = pinPos(k);
+      const m = new THREE.Mesh(new THREE.TorusGeometry(2.3, 0.28, 8, 28), new THREE.MeshBasicMaterial({ color: 0xffb347, transparent: true, opacity: 0.95 }));
+      m.rotation.x = Math.PI / 2; m.position.set(p.x, 7.3, p.z); scene.add(m); return m;
+    });
+
+    /* ---------- hạt khí ---------- */
+    const dotTex = tex(cvs(64, 64, x => { const g = x.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 64, 64); }));
+    function makeParticles(m, color) {
+      const N = 48, pos = new Float32Array(N * 3), list = [];
+      for (let i = 0; i < N; i++) {
+        const dir = new THREE.Vector3(rand(-1, 1), rand(-0.4, 1), rand(-0.2, 1)).normalize();
+        list.push({ dir, r: rand(14, 38), v: rand(2.5, 6), sw: rand(-0.4, 0.4) });
+      }
+      const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      const pm = new THREE.PointsMaterial({ size: 2.4, map: dotTex, color, transparent: true, depthWrite: false, opacity: 0.9 });
+      const pts = new THREE.Points(geo, pm); pts.frustumCulled = false; scene.add(pts);
+      return { m, list, geo, pm, pos, N, level: 0.06 };
+    }
+    const pGas = makeParticles(mq2, 0xe0801a);
+    const pAir = makeParticles(mq135, 0x1fa6a0);
+
+    /* ---------- bình gas minh họa: thân, van, bộ điều áp, dây dẫn ---------- */
+    const tank = group('tank', scene);
+    tank.position.set(-92, 0, -46); tank.scale.setScalar(0.7);
+    const tankPaint = new THREE.MeshPhysicalMaterial({ color: 0xc8322a, roughness: 0.35, clearcoat: 0.8, clearcoatRoughness: 0.2 });
+    const tankDark = new THREE.MeshStandardMaterial({ color: 0x8e2420, roughness: 0.5, side: THREE.DoubleSide });
+    const tBody = new THREE.Mesh(new THREE.CylinderGeometry(23, 23, 56, 48), tankPaint); tBody.position.y = 36; tank.add(tBody);
+    const tTop = new THREE.Mesh(new THREE.SphereGeometry(23, 48, 16, 0, Math.PI * 2, 0, Math.PI / 2), tankPaint);
+    tTop.scale.y = 0.55; tTop.position.y = 64; tank.add(tTop);
+    const tBot = tTop.clone(); tBot.rotation.x = Math.PI; tBot.position.y = 8; tank.add(tBot);
+    const tFoot = new THREE.Mesh(new THREE.CylinderGeometry(20, 21, 8, 40, 1, true), tankDark); tFoot.position.y = 4; tank.add(tFoot);
+    const tCollar = new THREE.Mesh(new THREE.CylinderGeometry(12, 13, 14, 32, 1, true), tankDark); tCollar.position.y = 77; tank.add(tCollar);
+    const bandTex = tex(cvs(1024, 128, x => {
+      x.fillStyle = '#f3efe6'; x.fillRect(0, 0, 1024, 128);
+      x.fillStyle = '#b02a22'; x.font = '700 64px sans-serif'; x.textAlign = 'center';
+      x.fillText('GAS · LPG', 256, 86); x.fillText('GAS · LPG', 768, 86);
+    }));
+    const tBand = new THREE.Mesh(new THREE.CylinderGeometry(23.15, 23.15, 14, 48, 1, true), new THREE.MeshStandardMaterial({ map: bandTex, roughness: 0.6 }));
+    tBand.position.y = 40; tank.add(tBand);
+    const tValve = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 3.6, 10, 20), mat(0xc9a14a, 0.3, 1)); tValve.position.y = 82; tank.add(tValve);
+    const tKnob = new THREE.Mesh(new THREE.CylinderGeometry(5.5, 5.5, 2.4, 6), mat(0x2a2f33, 0.5)); tKnob.position.y = 88.4; tank.add(tKnob);
+    const tReg = new THREE.Mesh(new THREE.CylinderGeometry(6, 6, 7, 24), mat(0x9aa3aa, 0.3, 0.9)); tReg.rotation.z = Math.PI / 2; tReg.position.set(9, 82, 0); tank.add(tReg);
+    const hoseCurve = new THREE.CatmullRomCurve3([[13, 82, 0], [26, 76, 4], [30, 40, 10], [22, 2.5, 26], [-20, 2.5, 40]].map(p => new THREE.Vector3(...p)));
+    const tHose = new THREE.Mesh(new THREE.TubeGeometry(hoseCurve, 60, 1.6, 10, false), mat(0x1c1f22, 0.6)); tank.add(tHose);
+    tank.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    tagInfo(tank, 'tank');
+    tank.updateMatrixWorld(true);
+    const leakWorld = tank.localToWorld(new THREE.Vector3(13, 84, 0));
+    /* leak marker: a ring that pulses at the joint while gas escapes */
+    const leakRing = new THREE.Mesh(new THREE.TorusGeometry(3.4, 0.35, 8, 28), new THREE.MeshBasicMaterial({ color: hdrC(0xffb347, 3), transparent: true, opacity: 0 }));
+    leakRing.position.copy(leakWorld); leakRing.rotation.y = Math.PI / 2; scene.add(leakRing);
+
+    /* ---------- nến minh họa: sáp, bấc, ngọn lửa (bloom), đèn ---------- */
+    const candle = group('candle', scene);
+    candle.position.set(mq135.cx + 6, 0, 56);
+    const cPlate = new THREE.Mesh(new THREE.CylinderGeometry(10, 10.5, 2.4, 32), mat(0xb9c0c5, 0.3, 0.9)); cPlate.position.y = 1.2; candle.add(cPlate);
+    const cWax = new THREE.Mesh(new THREE.CylinderGeometry(6.5, 6.8, 22, 32), mat(0xf1e9d8, 0.75)); cWax.position.y = 13.4; candle.add(cWax);
+    const cWick = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 3, 8), mat(0x202020, 0.8)); cWick.position.y = 25.9; candle.add(cWick);
+    candle.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    const flame = new THREE.Group(); flame.position.y = 29.2; candle.add(flame);
+    const fCore = new THREE.Mesh(new THREE.SphereGeometry(1.4, 16, 12), new THREE.MeshBasicMaterial({ color: hdrC(0xffe2a0, 6) }));
+    fCore.scale.set(1, 2.2, 1); flame.add(fCore);
+    const fOuter = new THREE.Mesh(new THREE.SphereGeometry(2.3, 16, 12), new THREE.MeshBasicMaterial({ color: hdrC(0xff8a2a, 3), transparent: true, opacity: 0.55, depthWrite: false }));
+    fOuter.scale.set(1, 2.6, 1); fOuter.position.y = 1.2; flame.add(fOuter);
+    const fLight = new THREE.PointLight(0xffa040, 0, 140, 2); fLight.position.y = 3; flame.add(fLight);
+    tagInfo(candle, 'candle');
+    const flameWorld = new THREE.Vector3(candle.position.x, 34, candle.position.z);
+
+    /* ---------- luồng khí: từ van bình gas tới MQ-2, từ ngọn nến tới MQ-135 ---------- */
+    function makeStream(src, dst, color, N, rise, spread) {
+      const pos = new Float32Array(N * 3), parts = [];
+      for (let i = 0; i < N; i++) parts.push({ u: Math.random(), v: rand(0.14, 0.32), ox: rand(-1, 1), oy: rand(-1, 1), oz: rand(-1, 1), ph: rand(0, 6.28) });
+      const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      const pm = new THREE.PointsMaterial({ size: 3.8, map: dotTex, color, transparent: true, depthWrite: false, opacity: 0.7 });
+      const pts = new THREE.Points(geo, pm); pts.frustumCulled = false; scene.add(pts);
+      return { src, dst, parts, geo, pm, pos, N, rise, spread, level: 0 };
+    }
+    const gasStream = makeStream(leakWorld, mq2.world, 0xf09a12, 160, 14, 10);
+    const smokeStream = makeStream(flameWorld, mq135.world, 0x7a838b, 140, 34, 8);
+    function stepStream(S, target, dt, now) {
+      S.level += (target - S.level) * (1 - Math.exp(-dt * 1.6));
+      const shown = Math.round(S.level * S.N);
+      S.parts.forEach((p, i) => {
+        if (!reduce) { p.u += p.v * dt; if (p.u > 1) { p.u -= 1; p.ox = rand(-1, 1); p.oy = rand(-1, 1); p.oz = rand(-1, 1); } }
+        const u = p.u, sp = 1 + S.spread * u, sway = Math.sin(now / 700 + p.ph) * 2.2 * u;
+        S.pos[i * 3] = S.src.x + (S.dst.x - S.src.x) * u + p.ox * sp + sway;
+        S.pos[i * 3 + 1] = S.src.y + (S.dst.y - S.src.y) * u + S.rise * Math.sin(Math.PI * u) + p.oy * sp * 0.6;
+        S.pos[i * 3 + 2] = S.src.z + (S.dst.z - S.src.z) * u + p.oz * sp;
+      });
+      S.geo.attributes.position.needsUpdate = true; S.geo.setDrawRange(0, shown);
+      return S.level;
+    }
+
+    /* ---------- nhãn HTML gắn vào toạ độ 3D ---------- */
+    const labBox = $('labels');
+    const labels = [];
+    function addLabel(text, pos, cls) {
+      const e = document.createElement('div'); e.className = 'lab' + (cls ? ' ' + cls : ''); e.textContent = text; labBox.appendChild(e);
+      const l = { e, pos: new THREE.Vector3(...pos) }; labels.push(l); return l;
+    }
+    addLabel('MQ-2 · AO → D35', [mq2.cx - 4, 50, ROWZ.f + 6]);
+    addLabel('MQ-135 · AO → D34', [mq135.cx + 4, 60, ROWZ.f + 6]);
+    const lBuz = addLabel('Còi · + → D4', [30.5, 24, 6]);
+    addLabel('ESP32 DevKit V1', [ESP.x, 14, ESP.z + 31]);
+    addLabel('Breadboard 400 điểm', [-26, 10, 29]);
+    addLabel('Bình gas (minh họa)', [-92, 72, -46]);
+    const lCandle = addLabel('Nến (minh họa)', [0, 44, 0]);
+    lCandle.pos.set(candle.position.x, 33, candle.position.z);
+    const lg1 = addLabel('firmware đọc MQ-2 ở VP', [HXs.L - 2, 20, pinZ(1)], 'warn');
+    const lg2 = addLabel('firmware đọc MQ-135 ở VN', [HXs.L - 2, 29, pinZ(2)], 'warn');
+    const v3 = new THREE.Vector3();
+
+    /* ---------- theme ---------- */
+    function applyTheme() {
+      const cs = getComputedStyle(document.documentElement);
+      const bg = cs.getPropertyValue('--scene-bg').trim() || '#dde3e7', tb = cs.getPropertyValue('--scene-table').trim() || '#c7ced3';
+      renderer.setClearColor(new THREE.Color(bg)); tableMat.color.set(tb); scene.fog = new THREE.Fog(new THREE.Color(bg), 420, 1000);
+    }
+    applyTheme();
+    if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+    new MutationObserver(applyTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+    /* ---------- chọn linh kiện bằng chuột ---------- */
+    const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+    const pickables = [bread, mq2.g, mq135.g, bz, esp, tank, candle];
+    function pick(ev) {
+      const r = canvas.getBoundingClientRect();
+      ndc.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
+      ray.setFromCamera(ndc, camera);
+      const hit = ray.intersectObjects(pickables, true).find(h => h.object.userData.info);
+      return hit ? hit.object.userData.info : null;
+    }
+    let downAt = null;
+    canvas.addEventListener('pointerdown', e => { downAt = [e.clientX, e.clientY]; });
+    canvas.addEventListener('pointerup', e => {
+      if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5) return;
+      const k = pick(e); if (k) selectView(k);
+    });
+    canvas.addEventListener('pointermove', e => { canvas.style.cursor = pick(e) ? 'pointer' : 'grab'; });
+
+    /* ---------- kích thước ---------- */
+    function resize() {
+      const st = $('stage'), w = st.clientWidth, h = st.clientHeight;
+      if (!w || !h) return;
+      renderer.setSize(w, h, false); composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(w, h);
+      camera.aspect = w / h; camera.updateProjectionMatrix();
+    }
+    new ResizeObserver(resize).observe($('stage')); resize();
+
+    placeBuzzer(state.buz);
+
+    return {
+      applyFw() { drawEspTop(); },
+      applyBuz() { placeBuzzer(state.buz); },
+      flyTo(v) {
+        const to = VIEWS[v]; if (!to) return;
+        controls.autoRotate = false;
+        tween = { t: 0, p0: camera.position.clone(), t0: controls.target.clone(), p1: new THREE.Vector3(...to.p), t1: new THREE.Vector3(...to.t) };
+        if (reduce) { camera.position.copy(tween.p1); controls.target.copy(tween.t1); tween = null; }
+      },
+      update(d) {
+        if (tween) {
+          tween.t = Math.min(1, tween.t + d.dt / 0.9);
+          const e = tween.t < 0.5 ? 2 * tween.t * tween.t : 1 - Math.pow(-2 * tween.t + 2, 2) / 2;
+          camera.position.lerpVectors(tween.p0, tween.p1, e); controls.target.lerpVectors(tween.t0, tween.t1, e);
+          if (tween.t >= 1) tween = null;
+        }
+        controls.update();
+
+        /* heater glow and DO LEDs */
+        [[mq2, d.gasHigh, d.phG], [mq135, d.airHigh, d.phA]].forEach(([m, high, mv]) => {
+          m.heatMat.opacity = Math.min(1, d.heat * (0.3 + d.flick * 1.5 + (high ? 0.25 : 0)));
+          m.light.intensity = d.heat * (50 + d.flick * 250 + (high ? 120 : 0));
+          m.doMat.color.copy(mv > m.doThresh ? m.doOnC : m.doOffC);
+        });
+
+        /* particles */
+        [[pGas, d.lvG], [pAir, d.lvA]].forEach(([P, lv]) => {
+          P.level += (lv - P.level) * (1 - Math.exp(-d.dt * 1.4));
+          const shown = Math.round(2 + P.level * (P.N - 2));
+          const c = P.m.world;
+          P.list.forEach((p, i) => {
+            if (!reduce) { p.r -= p.v * d.dt; if (p.r < 9) { p.r = rand(30, 40); p.dir.set(rand(-1, 1), rand(-0.4, 1), rand(-0.2, 1)).normalize(); } }
+            const wob = Math.sin(d.now / 600 + i) * 1.2 * p.sw;
+            P.pos[i * 3] = c.x + p.dir.x * p.r + wob; P.pos[i * 3 + 1] = c.y + p.dir.y * p.r; P.pos[i * 3 + 2] = c.z + p.dir.z * p.r;
+          });
+          P.geo.attributes.position.needsUpdate = true; P.geo.setDrawRange(0, shown);
+        });
+
+        /* gas leak and candle smoke */
+        const gl = stepStream(gasStream, d.streamG, d.dt, d.now);
+        const sl = stepStream(smokeStream, d.streamA, d.dt, d.now);
+        leakRing.material.opacity = gl > 0.05 ? gl * (0.45 + 0.4 * Math.sin(d.now / 120)) : 0;
+        const fk = reduce ? 0 : Math.sin(d.now / 70) * 0.06 + Math.sin(d.now / 23) * 0.04;
+        flame.visible = sl > 0.04;
+        flame.scale.set(sl * (1 + fk), sl * (1 + fk * 2), sl * (1 + fk));
+        fLight.intensity = sl * (200 + fk * 450);
+
+        /* flowing dots */
+        flows.forEach(f => {
+          let speed = 0.16, show = true;
+          if (f.kind === 'sig') { const lv = (f.src === 'g' ? d.simG : d.simA) - 150; speed = 0.1 + Math.max(0, lv) / 1800 * 0.6; }
+          if (f.kind === 'buz') show = d.cmdOn;
+          if (f.only === 'ok') show = state.buz === 'ok';
+          if (!reduce) f.t = (f.t + speed * d.dt) % 1;
+          f.dots.forEach((dot, i) => {
+            dot.visible = show; if (!show) return;
+            let u = (f.t + i / f.n) % 1; if (f.dir < 0) u = 1 - u;
+            dot.position.copy(f.curve.getPointAt(u));
+          });
+        });
+
+        /* buzzer: vibration and sound rings */
+        const base = bz.userData.base;
+        if (base) bz.position.set(base.x + (d.audible && !reduce ? Math.sin(d.now / 16) * 0.25 : 0), base.y, base.z);
+        const topY = BB_TOP + 3.2 + 9.5 + 0.2;
+        rings.forEach((m, i) => {
+          if (!d.audible) { m.material.opacity = 0; return; }
+          const ph = ((d.now / 700) + i / 3) % 1;
+          m.position.set(bz.position.x, topY, bz.position.z);
+          const s = 7 + ph * 14; m.scale.set(s, s, s); m.material.opacity = (1 - ph) * 0.55;
+        });
+        lBuz.e.textContent = d.audible ? 'Còi · BÍP' : (state.buz === 'open' ? 'Còi · mạch hở, không kêu' : 'Còi · + → D4');
+        lBuz.pos.set(bz.position.x, 24, bz.position.z);
+
+        /* ESP32 LEDs and Wi-Fi */
+        ioMat.color.copy(d.ledOn ? IO_ON : IO_OFF); ioLight.intensity = d.ledOn ? 60 : 0;
+        wifiArcs.forEach((a, i) => {
+          const o = d.online ? Math.max(0.1, 1 - Math.max(0, d.phase * 1000 - i * 110) / 520) : 0.1 + 0.15 * (Math.sin(d.now / 250 + i) * 0.5 + 0.5);
+          a.material.opacity = reduce ? (d.online ? 0.6 : 0.2) : o;
+        });
+        const pulse = reduce ? 1 : 0.7 + 0.3 * Math.sin(d.now / 260);
+        const ghostOn = state.fw === 'now';
+        ghostRings.forEach(r => { r.visible = ghostOn; r.material.opacity = pulse; });
+        lg1.e.style.display = ghostOn ? '' : 'none'; lg2.e.style.display = ghostOn ? '' : 'none';
+
+        /* labels */
+        const W = $('stage').clientWidth, H = $('stage').clientHeight;
+        labels.forEach(l => {
+          v3.copy(l.pos).project(camera);
+          const vis = v3.z < 1 && Math.abs(v3.x) < 1.15 && Math.abs(v3.y) < 1.15;
+          if (l.e.style.display === 'none' && (l === lg1 || l === lg2)) return;
+          l.e.style.visibility = vis ? 'visible' : 'hidden';
+          l.e.style.transform = `translate(${((v3.x + 1) / 2 * W).toFixed(1)}px, ${((1 - v3.y) / 2 * H).toFixed(1)}px) translate(-50%, -100%)`;
+        });
+        composer.render();
+      },
+    };
+  }
+
+  /* ======================= vòng lặp ======================= */
+  const noGl = () => { $('stage').innerHTML = '<div class="nogl">Không dựng được cảnh 3D (trình duyệt chưa bật WebGL hoặc không tải được three.js từ CDN). Số liệu và phần kết nối thiết bị bên dưới vẫn hoạt động.</div>'; };
+  loadThree()
+    .then(() => { try { three = initScene(); } catch (err) { console.error(err); three = null; } if (!three) noGl(); })
+    .catch(err => { console.error(err); noGl(); });
+  renderMap(); updateBadge();
+
+  let last = performance.now(), uiAcc = 1, lastPkt = -1;
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    const t = (now - pw0) / 1000;
+    const isLive = state.source === 'live';
+    const tg = target[state.scenario];
+    sim.g += (tg.g - sim.g) * (1 - Math.exp(-dt / (tg.g > sim.g ? 2.2 : 7)));
+    sim.a += (tg.a - sim.a) * (1 - Math.exp(-dt / (tg.a > sim.a ? 2.2 : 7)));
+
+    let phG, phA, pg, pa, alarm, poor, lvG, lvA;
+    if (isLive) {
+      /* số liệu thật từ gói MQTT của thiết bị */
+      const fresh = liveFresh();
+      phG = live.g ? live.g.mv : 0; phA = live.a ? live.a.mv : 0;
+      pg = live.g ? live.g.ppm : 0; pa = live.a ? live.a.co2 : 400;
+      alarm = !!(fresh && live.g && live.g.alarm); poor = !!(fresh && live.a && live.a.poor);
+      sim.g = Math.max(150, phG); sim.a = Math.max(150, phA);
+      lvG = fresh && live.g ? Math.min(1, Math.max(0.06, pg / 1000)) : 0.06;
+      lvA = fresh && live.a ? Math.min(1, Math.max(0.06, (pa - 400) / 1100)) : 0.06;
+    } else {
+      const warm = t < 40 ? Math.exp(-t / 7) : 0;
+      phG = Math.round(sim.g + 350 * warm + Math.sin(now / 190) * 6 + Math.sin(now / 71) * 3);
+      phA = Math.round(sim.a + 300 * warm + Math.sin(now / 230) * 5 + Math.sin(now / 83) * 3);
+      pg = ppmGas(phG); pa = ppmAir(phA);
+      alarm = pg >= 1000; poor = pa >= 1500;
+      lvG = state.scenario === 'gas' ? 1 : 0.06; lvA = state.scenario === 'air' ? 1 : 0.06;
+    }
+
+    const streamG = isLive ? (liveFresh() && live.g && live.g.alarm ? 1 : 0) : (state.scenario === 'gas' ? 1 : 0);
+    const streamA = isLive ? (liveFresh() && live.a && live.a.poor ? 1 : 0) : (state.scenario === 'air' ? 1 : 0);
+    if (!isLive) discordWatch(alarm, poor, pg, pa, phG, phA);
+    /* same patterns as gas_buzzer.c: gas 150/150 ms, poor air 200 on / 1800 off, silent at boot.
+       In live mode alarm/poor come from the device's own flags, so the 3D buzzer beeps whenever the real one does. */
+    let cmdOn = false, buzzMode = 'Im';
+    if (alarm) { cmdOn = (now % 300) < 150; buzzMode = 'Bíp nhanh'; }
+    else if (poor) { cmdOn = (now % 2000) < 200; buzzMode = 'Bíp chậm'; }
+    const audible = cmdOn && state.buz === 'ok';
+    const ledOn = alarm || poor;
+    const online = isLive ? (live.status === 'online' && liveFresh()) : t > 3.5;
+    const phase = isLive ? ((performance.now() - live.lastMsg) % 1000) / 1000 : ((now - pw0) % 1000) / 1000;
+
+    if (three) three.update({
+      now, dt, heat: isLive ? 1 : 1 - Math.exp(-t / 1.8), flick: 0.04 * Math.sin(now / 130) + 0.03 * Math.sin(now / 47),
+      gasHigh: phG > 1700, airHigh: phA > 640, phG, phA, simG: sim.g, simA: sim.a,
+      cmdOn, audible, ledOn, online, phase, lvG, lvA, streamG, streamA,
+    });
+
+    if (!isLive) {
+      const pkt = Math.floor((now - pw0) / 1000);
+      if (online && pkt !== lastPkt) {
+        lastPkt = pkt;
+        $('mqG').textContent = `{"ppm":${Math.round(pg)},"mv":${phG},"threshold":1000,"alarm":${alarm}}`;
+        $('mqA').textContent = `{"co2_ppm":${Math.round(pa)},"mv":${phA},"threshold":1500,"poor":${poor}}`;
+      }
+      if (!online && t < 0.2) { $('mqG').textContent = 'đang chờ kết nối…'; $('mqA').textContent = 'đang chờ kết nối…'; lastPkt = -1; }
+    }
+
+    uiAcc += dt;
+    if (uiAcc > 0.12) {
+      uiAcc = 0;
+      const noG = isLive && !live.g, noA = isLive && !live.a;
+      /* firmware 1.2.0+: fault = sensor reads as unpowered, its ppm means nothing */
+      const fG = isLive && !!(live.g && live.g.fault), fA = isLive && !!(live.a && live.a.fault);
+      $('vGas').textContent = noG || fG ? '—' : Math.round(pg); $('mvGas').textContent = noG ? '—' : phG;
+      $('vAir').textContent = noA || fA ? '—' : Math.round(pa); $('mvAir').textContent = noA ? '—' : phA;
+      const age = live.lastMsg ? Math.round((performance.now() - live.lastMsg) / 1000) : 0;
+      const src = !isLive ? 'mô phỏng trong trang'
+        : !live.lastMsg ? 'thiết bị thật · chưa có dữ liệu'
+        : liveFresh() ? 'thiết bị thật · đang nhận' : `thiết bị thật · dừng ${age} giây trước`;
+      $('srcGas').textContent = src + (isLive && live.g && live.g.sim ? ' · đang giả lập' : '');
+      $('srcAir').textContent = src + (isLive && live.a && live.a.sim ? ' · đang giả lập' : '');
+      const cg = $('chipGas'); cg.textContent = alarm ? 'BÁO ĐỘNG' : noG ? 'Chưa có dữ liệu' : fG ? 'Mất tín hiệu · kiểm tra dây VCC' : 'An toàn'; cg.className = 'chip' + (alarm || fG ? ' alert' : '');
+      const ca = $('chipAir'); ca.textContent = poor ? 'Không khí kém' : noA ? 'Chưa có dữ liệu' : fA ? 'Mất tín hiệu · kiểm tra dây VCC' : 'Không khí tốt'; ca.className = 'chip' + (poor || fA ? ' alert' : '');
+      $('vBuz').textContent = buzzMode;
+      $('subBuz').textContent = (ledOn ? 'LED GPIO2 sáng' : 'LED GPIO2 tắt') + (isLive ? ' · suy ra từ cờ báo động' : '');
+      const cb = $('chipBuz'); cb.textContent = alarm ? 'Gas vượt ngưỡng' : poor ? 'Không khí kém' : 'Chờ'; cb.className = 'chip' + (ledOn ? ' alert' : '');
+      if (isLive) $('stData').textContent = !live.lastMsg ? 'chưa có' : liveFresh() ? 'đang nhận' : `dừng ${age} giây trước`;
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

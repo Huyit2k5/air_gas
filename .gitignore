@@ -1,0 +1,15 @@
+# ESP-IDF build output
+build/
+managed_components/
+dependencies.lock
+
+# Build / config logs
+build_*.txt
+build_log*.txt
+reconfig_log*.txt
+sdkconfig.old
+
+# Editor / tool state
+.vscode/
+.kilo/
+.serena/
