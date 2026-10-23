@@ -1,642 +1,1423 @@
 [
-    {
-        "id": "f6f2187d.f17ca8",
-        "type": "tab",
-        "label": "Flow 1",
-        "disabled": false,
-        "info": ""
+  {
+    "id": "f6f2187d.f17ca8",
+    "type": "tab",
+    "label": "Flow 1",
+    "disabled": false,
+    "info": ""
+  },
+  {
+    "id": "3cc11d24.ff01a2",
+    "type": "comment",
+    "z": "f6f2187d.f17ca8",
+    "name": "WARNING: please check you have started this container with a volume that is mounted to /data\\n otherwise any flow changes are lost when you redeploy or upgrade the container\\n (e.g. upgrade to a more recent node-red docker image).\\n  If you are using named volumes you can ignore this warning.\\n Double click or see info side panel to learn how to start Node-RED in Docker to save your work",
+    "info": "\nTo start docker with a bind mount volume (-v option), for example:\n\n```\ndocker run -it -p 1880:1880 -v /home/user/node_red_data:/data --name mynodered nodered/node-red\n```\n\nwhere `/home/user/node_red_data` is a directory on your host machine where you want to store your flows.\n\nIf you do not do this then you can experiment and redploy flows, but if you restart or upgrade the container the flows will be disconnected and lost. \n\nThey will still exist in a hidden data volume, which can be recovered using standard docker techniques, but that is much more complex than just starting with a named volume as described above.",
+    "x": 350,
+    "y": 80,
+    "wires": []
+  },
+  {
+    "id": "http_in_node",
+    "type": "http in",
+    "z": "f6f2187d.f17ca8",
+    "name": "Receive Data",
+    "url": "/api/data",
+    "method": "post",
+    "upload": false,
+    "swaggerDoc": "",
+    "x": 170,
+    "y": 580,
+    "wires": [
+      [
+        "json_node"
+      ]
+    ]
+  },
+  {
+    "id": "json_node",
+    "type": "json",
+    "z": "f6f2187d.f17ca8",
+    "name": "",
+    "property": "payload",
+    "action": "",
+    "pretty": false,
+    "x": 340,
+    "y": 580,
+    "wires": [
+      [
+        "debug_node",
+        "response_node"
+      ]
+    ]
+  },
+  {
+    "id": "debug_node",
+    "type": "debug",
+    "z": "f6f2187d.f17ca8",
+    "name": "View Payload",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 520,
+    "y": 540,
+    "wires": []
+  },
+  {
+    "id": "response_node",
+    "type": "http response",
+    "z": "f6f2187d.f17ca8",
+    "name": "Success 200",
+    "statusCode": "200",
+    "headers": {},
+    "x": 520,
+    "y": 620,
+    "wires": []
+  },
+  {
+    "id": "airgas-broker",
+    "type": "mqtt-broker",
+    "name": "Mosquitto (docker)",
+    "broker": "mosquitto",
+    "port": "1883",
+    "clientid": "nodered-airgas",
+    "autoConnect": true,
+    "usetls": false,
+    "protocolVersion": "4",
+    "keepalive": "60",
+    "cleansession": true,
+    "autoUnsubscribe": true
+  },
+  {
+    "id": "ui-base-airgas",
+    "type": "ui-base",
+    "name": "Trạm cảnh báo gas",
+    "path": "/dashboard",
+    "appIcon": "",
+    "includeClientData": true,
+    "acceptsClientConfig": [
+      "ui-notification",
+      "ui-control"
+    ],
+    "showPathInSidebar": false,
+    "headerContent": "page",
+    "navigationStyle": "default",
+    "titleBarStyle": "default",
+    "showReconnectNotification": true,
+    "notificationDisplayTime": 1,
+    "showDisconnectNotification": true,
+    "allowInstall": false
+  },
+  {
+    "id": "ui-theme-airgas",
+    "type": "ui-theme",
+    "name": "Nhóm 12",
+    "colors": {
+      "surface": "#17365d",
+      "primary": "#1f4e78",
+      "bgPage": "#eef2f6",
+      "groupBg": "#ffffff",
+      "groupOutline": "#c9d6e3"
     },
-    {
-        "id": "3cc11d24.ff01a2",
-        "type": "comment",
-        "z": "f6f2187d.f17ca8",
-        "name": "WARNING: please check you have started this container with a volume that is mounted to /data\\n otherwise any flow changes are lost when you redeploy or upgrade the container\\n (e.g. upgrade to a more recent node-red docker image).\\n  If you are using named volumes you can ignore this warning.\\n Double click or see info side panel to learn how to start Node-RED in Docker to save your work",
-        "info": "\nTo start docker with a bind mount volume (-v option), for example:\n\n```\ndocker run -it -p 1880:1880 -v /home/user/node_red_data:/data --name mynodered nodered/node-red\n```\n\nwhere `/home/user/node_red_data` is a directory on your host machine where you want to store your flows.\n\nIf you do not do this then you can experiment and redploy flows, but if you restart or upgrade the container the flows will be disconnected and lost. \n\nThey will still exist in a hidden data volume, which can be recovered using standard docker techniques, but that is much more complex than just starting with a named volume as described above.",
-        "x": 350,
-        "y": 80,
-        "wires": []
-    },
-    {
-        "id": "airgas-tab",
-        "type": "tab",
-        "label": "Air Gas MQTT",
-        "disabled": false,
-        "info": "Nhan du lieu tu ESP32 air_gas qua MQTT (broker mosquitto trong docker-compose nay).\n\nTopic:\n- airgas/<device>/reading : gui dinh ky, JSON {ppm, mv, threshold, alarm}\n- airgas/<device>/alarm   : chi gui khi vuot nguong, JSON {ppm, mv, threshold, device}\n- airgas/<device>/status  : \"online\" khi ket noi, \"offline\" tu dong qua MQTT LWT khi mat ket noi dot ngot"
-    },
-    {
-        "id": "airquality-tab",
-        "type": "tab",
-        "label": "Air Quality MQTT",
-        "disabled": false,
-        "info": "Nhan du lieu tu cam bien MQ-135 (chat luong khong khi / CO2 tuong duong) qua MQTT.\n\nTopic:\n- airquality/<device>/reading : gui dinh ky, JSON {co2_ppm, mv, threshold, poor}"
-    },
-    {
-        "id": "airgas-broker",
-        "type": "mqtt-broker",
-        "name": "Mosquitto (local)",
-        "broker": "mosquitto",
-        "port": "1883",
-        "clientid": "",
-        "autoConnect": true,
-        "usetls": false,
-        "protocolVersion": "4",
-        "keepalive": "60",
-        "cleansession": true
-    },
-    {
-        "id": "sub-reading",
-        "type": "mqtt in",
-        "z": "airgas-tab",
-        "name": "airgas/+/reading",
-        "topic": "airgas/+/reading",
-        "qos": "0",
-        "datatype": "json",
-        "broker": "airgas-broker",
-        "nl": false,
-        "rap": true,
-        "rh": 0,
-        "inputs": 0,
-        "x": 180,
-        "y": 100,
-        "wires": [["debug-reading", "fn-extract-ppm", "status-badge", "fn-timestamp"]]
-    },
-    {
-        "id": "debug-reading",
-        "type": "debug",
-        "z": "airgas-tab",
-        "name": "Reading",
-        "active": true,
-        "tosidebar": true,
-        "console": false,
-        "tostatus": false,
-        "complete": "payload",
-        "targetType": "msg",
-        "statusVal": "",
-        "statusType": "auto",
-        "x": 400,
-        "y": 100,
-        "wires": []
-    },
-    {
-        "id": "sub-alarm",
-        "type": "mqtt in",
-        "z": "airgas-tab",
-        "name": "airgas/+/alarm",
-        "topic": "airgas/+/alarm",
-        "qos": "0",
-        "datatype": "json",
-        "broker": "airgas-broker",
-        "nl": false,
-        "rap": true,
-        "rh": 0,
-        "inputs": 0,
-        "x": 180,
-        "y": 180,
-        "wires": [["debug-alarm"]]
-    },
-    {
-        "id": "debug-alarm",
-        "type": "debug",
-        "z": "airgas-tab",
-        "name": "ALARM",
-        "active": true,
-        "tosidebar": true,
-        "console": false,
-        "tostatus": false,
-        "complete": "payload",
-        "targetType": "msg",
-        "statusVal": "",
-        "statusType": "auto",
-        "x": 400,
-        "y": 180,
-        "wires": []
-    },
-    {
-        "id": "sub-status",
-        "type": "mqtt in",
-        "z": "airgas-tab",
-        "name": "airgas/+/status",
-        "topic": "airgas/+/status",
-        "qos": "1",
-        "datatype": "utf8",
-        "broker": "airgas-broker",
-        "nl": false,
-        "rap": true,
-        "rh": 0,
-        "inputs": 0,
-        "x": 180,
-        "y": 260,
-        "wires": [["debug-status", "online-badge"]]
-    },
-    {
-        "id": "debug-status",
-        "type": "debug",
-        "z": "airgas-tab",
-        "name": "Status",
-        "active": true,
-        "tosidebar": true,
-        "console": false,
-        "tostatus": false,
-        "complete": "payload",
-        "targetType": "msg",
-        "statusVal": "",
-        "statusType": "auto",
-        "x": 400,
-        "y": 220,
-        "wires": []
-    },
-    {
-        "id": "fn-extract-ppm",
-        "type": "function",
-        "z": "airgas-tab",
-        "name": "extract ppm",
-        "func": "msg.payload = msg.payload.ppm;\nreturn msg;",
-        "outputs": 1,
-        "timeout": 0,
-        "noerr": 0,
-        "initialize": "",
-        "finalize": "",
-        "libs": [],
-        "x": 400,
-        "y": 300,
-        "wires": [["gauge-ppm", "chart-ppm"]]
-    },
-    {
-        "id": "fn-timestamp",
-        "type": "function",
-        "z": "airgas-tab",
-        "name": "format timestamp",
-        "func": "msg.payload = \"Cap nhat luc \" + new Date().toLocaleTimeString('vi-VN');\nreturn msg;",
-        "outputs": 1,
-        "timeout": 0,
-        "noerr": 0,
-        "initialize": "",
-        "finalize": "",
-        "libs": [],
-        "x": 400,
-        "y": 340,
-        "wires": [["text-last-update"]]
-    },
-    {
-        "id": "ui-base-airgas",
-        "type": "ui-base",
-        "name": "Air Gas Dashboard",
-        "path": "/dashboard",
-        "appIcon": "",
-        "includeClientData": true,
-        "acceptsClientConfig": ["ui-notification", "ui-control"],
-        "showPathInSidebar": false,
-        "headerContent": "page",
-        "navigationStyle": "default",
-        "titleBarStyle": "default",
-        "showReconnectNotification": true,
-        "notificationDisplayTime": 1,
-        "showDisconnectNotification": true,
-        "allowInstall": false
-    },
-    {
-        "id": "ui-theme-airgas",
-        "type": "ui-theme",
-        "name": "Default Theme",
-        "colors": {
-            "surface": "#ffffff",
-            "primary": "#0094CE",
-            "bgPage": "#eeeeee",
-            "groupBg": "#ffffff",
-            "groupOutline": "#cccccc"
-        },
-        "sizes": {
-            "density": "default",
-            "pagePadding": "12px",
-            "groupGap": "12px",
-            "groupBorderRadius": "4px",
-            "widgetGap": "12px"
-        }
-    },
-    {
-        "id": "ui-page-airgas",
-        "type": "ui-page",
-        "name": "Gas Monitor",
-        "ui": "ui-base-airgas",
-        "path": "/gas",
-        "icon": "home",
-        "layout": "grid",
-        "theme": "ui-theme-airgas",
-        "breakpoints": [
-            { "name": "Default", "px": "0", "cols": "3" },
-            { "name": "Tablet", "px": "576", "cols": "6" },
-            { "name": "Small Desktop", "px": "768", "cols": "9" },
-            { "name": "Desktop", "px": "1024", "cols": "12" }
-        ],
-        "order": 1,
-        "className": "",
-        "visible": true,
-        "disabled": false
-    },
-    {
-        "id": "ui-group-status",
-        "type": "ui-group",
-        "name": "Trang thai hien tai",
-        "page": "ui-page-airgas",
-        "width": "6",
-        "height": "1",
-        "order": 1,
-        "showTitle": true,
-        "className": "",
-        "visible": true,
-        "disabled": false
-    },
-    {
-        "id": "ui-group-history",
-        "type": "ui-group",
-        "name": "Lich su",
-        "page": "ui-page-airgas",
-        "width": "6",
-        "height": "1",
-        "order": 2,
-        "showTitle": true,
-        "className": "",
-        "visible": true,
-        "disabled": false
-    },
-    {
-        "id": "gauge-ppm",
-        "type": "ui-gauge",
-        "z": "airgas-tab",
-        "name": "Gas ppm",
-        "group": "ui-group-status",
-        "order": 1,
-        "value": "payload",
-        "valueType": "msg",
-        "width": 6,
-        "height": 4,
-        "gtype": "gauge-half",
-        "gstyle": "needle",
-        "title": "Gas reading (est. LPG)",
-        "alwaysShowTitle": true,
-        "floatingTitlePosition": "top-left",
-        "units": "ppm",
-        "icon": "",
-        "prefix": "",
-        "suffix": "",
-        "segments": [
-            { "color": "#5CD65C", "from": 0 },
-            { "color": "#FFC800", "from": 500 },
-            { "color": "#EA5353", "from": 1000 }
-        ],
-        "min": 0,
-        "max": 5000,
-        "sizeThickness": 16,
-        "sizeGap": 4,
-        "sizeKeyThickness": 8,
-        "styleRounded": true,
-        "styleGlow": false,
-        "className": "",
-        "x": 640,
-        "y": 300,
-        "wires": []
-    },
-    {
-        "id": "status-badge",
-        "type": "ui-template",
-        "z": "airgas-tab",
-        "group": "ui-group-status",
-        "page": "",
-        "ui": "",
-        "name": "Alarm badge",
-        "order": 2,
-        "width": 6,
-        "height": 2,
-        "head": "",
-        "format": "<template>\n  <div :style=\"{background: (msg.payload && msg.payload.alarm) ? '#EA5353' : '#5CD65C', color: '#ffffff', padding: '16px', borderRadius: '8px', textAlign: 'center', fontSize: '20px', fontWeight: 'bold', transition: 'background 0.3s'}\">\n    {{ (msg.payload && msg.payload.alarm) ? 'GAS ALARM' : 'OK' }}\n  </div>\n</template>\n\n<script>\nexport default {\n  data() {\n    return {}\n  }\n}\n</script>\n",
-        "storeOutMessages": true,
-        "passthru": false,
-        "resendOnRefresh": true,
-        "templateScope": "local",
-        "className": "",
-        "x": 640,
-        "y": 380,
-        "wires": [[]]
-    },
-    {
-        "id": "text-last-update",
-        "type": "ui-text",
-        "z": "airgas-tab",
-        "group": "ui-group-status",
-        "order": 3,
-        "width": 3,
-        "height": 1,
-        "name": "Last update",
-        "label": "",
-        "format": "{{msg.payload}}",
-        "layout": "row-spread",
-        "style": false,
-        "font": "Helvetica",
-        "fontSize": 14,
-        "color": "#717171",
-        "wrapText": false,
-        "className": "",
-        "x": 640,
-        "y": 420,
-        "wires": []
-    },
-    {
-        "id": "online-badge",
-        "type": "ui-template",
-        "z": "airgas-tab",
-        "group": "ui-group-status",
-        "page": "",
-        "ui": "",
-        "name": "Online badge",
-        "order": 4,
-        "width": 3,
-        "height": 1,
-        "head": "",
-        "format": "<template>\n  <div :style=\"{background: msg.payload === 'online' ? '#5CD65C' : '#9E9E9E', color: '#ffffff', padding: '8px', borderRadius: '8px', textAlign: 'center', fontSize: '13px', fontWeight: 'bold'}\">\n    {{ msg.payload === 'online' ? 'Thiet bi online' : 'Offline / chua ket noi' }}\n  </div>\n</template>\n\n<script>\nexport default {\n  data() {\n    return {}\n  }\n}\n</script>\n",
-        "storeOutMessages": true,
-        "passthru": false,
-        "resendOnRefresh": true,
-        "templateScope": "local",
-        "className": "",
-        "x": 400,
-        "y": 260,
-        "wires": [[]]
-    },
-    {
-        "id": "chart-ppm",
-        "type": "ui-chart",
-        "z": "airgas-tab",
-        "name": "Gas history",
-        "group": "ui-group-history",
-        "label": "Gas ppm history",
-        "order": 1,
-        "chartType": "line",
-        "category": "topic",
-        "categoryType": "msg",
-        "xAxisLabel": "",
-        "xAxisProperty": null,
-        "xAxisPropertyType": "timestamp",
-        "xAxisType": "time",
-        "xAxisFormat": "",
-        "xAxisFormatType": "auto",
-        "xmin": "",
-        "xmax": "",
-        "yAxisLabel": "ppm",
-        "yAxisProperty": "payload",
-        "yAxisPropertyType": "msg",
-        "ymin": "0",
-        "ymax": "5000",
-        "action": "append",
-        "stackSeries": false,
-        "pointShape": "circle",
-        "pointRadius": 4,
-        "showLegend": false,
-        "removeOlder": 1,
-        "removeOlderUnit": "3600",
-        "removeOlderPoints": "",
-        "colors": ["#0095FF"],
-        "textColorDefault": true,
-        "gridColorDefault": true,
-        "width": 12,
-        "height": 8,
-        "className": "",
-        "x": 640,
-        "y": 460,
-        "wires": []
-    },
-    {
-        "id": "sub-aq-reading",
-        "type": "mqtt in",
-        "z": "airquality-tab",
-        "name": "airquality/+/reading",
-        "topic": "airquality/+/reading",
-        "qos": "0",
-        "datatype": "json",
-        "broker": "airgas-broker",
-        "nl": false,
-        "rap": true,
-        "rh": 0,
-        "inputs": 0,
-        "x": 200,
-        "y": 100,
-        "wires": [["debug-aq-reading", "fn-aq-extract-co2", "aq-status-badge", "fn-aq-timestamp"]]
-    },
-    {
-        "id": "debug-aq-reading",
-        "type": "debug",
-        "z": "airquality-tab",
-        "name": "AQ Reading",
-        "active": true,
-        "tosidebar": true,
-        "console": false,
-        "tostatus": false,
-        "complete": "payload",
-        "targetType": "msg",
-        "statusVal": "",
-        "statusType": "auto",
-        "x": 440,
-        "y": 100,
-        "wires": []
-    },
-    {
-        "id": "fn-aq-extract-co2",
-        "type": "function",
-        "z": "airquality-tab",
-        "name": "extract co2_ppm",
-        "func": "msg.payload = msg.payload.co2_ppm;\nreturn msg;",
-        "outputs": 1,
-        "timeout": 0,
-        "noerr": 0,
-        "initialize": "",
-        "finalize": "",
-        "libs": [],
-        "x": 440,
-        "y": 160,
-        "wires": [["gauge-co2", "chart-co2"]]
-    },
-    {
-        "id": "fn-aq-timestamp",
-        "type": "function",
-        "z": "airquality-tab",
-        "name": "format timestamp",
-        "func": "msg.payload = \"Cap nhat luc \" + new Date().toLocaleTimeString('vi-VN');\nreturn msg;",
-        "outputs": 1,
-        "timeout": 0,
-        "noerr": 0,
-        "initialize": "",
-        "finalize": "",
-        "libs": [],
-        "x": 440,
-        "y": 280,
-        "wires": [["text-aq-last-update"]]
-    },
-    {
-        "id": "ui-page-airquality",
-        "type": "ui-page",
-        "name": "Air Quality",
-        "ui": "ui-base-airgas",
-        "path": "/air-quality",
-        "icon": "air",
-        "layout": "grid",
-        "theme": "ui-theme-airgas",
-        "breakpoints": [
-            { "name": "Default", "px": "0", "cols": "3" },
-            { "name": "Tablet", "px": "576", "cols": "6" },
-            { "name": "Small Desktop", "px": "768", "cols": "9" },
-            { "name": "Desktop", "px": "1024", "cols": "12" }
-        ],
-        "order": 2,
-        "className": "",
-        "visible": true,
-        "disabled": false
-    },
-    {
-        "id": "ui-group-aq-status",
-        "type": "ui-group",
-        "name": "Trang thai hien tai",
-        "page": "ui-page-airquality",
-        "width": "6",
-        "height": "1",
-        "order": 1,
-        "showTitle": true,
-        "className": "",
-        "visible": true,
-        "disabled": false
-    },
-    {
-        "id": "ui-group-aq-history",
-        "type": "ui-group",
-        "name": "Lich su",
-        "page": "ui-page-airquality",
-        "width": "6",
-        "height": "1",
-        "order": 2,
-        "showTitle": true,
-        "className": "",
-        "visible": true,
-        "disabled": false
-    },
-    {
-        "id": "gauge-co2",
-        "type": "ui-gauge",
-        "z": "airquality-tab",
-        "name": "CO2 eq ppm",
-        "group": "ui-group-aq-status",
-        "order": 1,
-        "value": "payload",
-        "valueType": "msg",
-        "width": 6,
-        "height": 4,
-        "gtype": "gauge-half",
-        "gstyle": "needle",
-        "title": "Air quality (est. CO2-eq)",
-        "alwaysShowTitle": true,
-        "floatingTitlePosition": "top-left",
-        "units": "ppm",
-        "icon": "",
-        "prefix": "",
-        "suffix": "",
-        "segments": [
-            { "color": "#5CD65C", "from": 0 },
-            { "color": "#FFC800", "from": 1000 },
-            { "color": "#EA5353", "from": 1500 }
-        ],
-        "min": 400,
-        "max": 3000,
-        "sizeThickness": 16,
-        "sizeGap": 4,
-        "sizeKeyThickness": 8,
-        "styleRounded": true,
-        "styleGlow": false,
-        "className": "",
-        "x": 680,
-        "y": 100,
-        "wires": []
-    },
-    {
-        "id": "aq-status-badge",
-        "type": "ui-template",
-        "z": "airquality-tab",
-        "group": "ui-group-aq-status",
-        "page": "",
-        "ui": "",
-        "name": "Air quality badge",
-        "order": 2,
-        "width": 6,
-        "height": 2,
-        "head": "",
-        "format": "<template>\n  <div :style=\"{background: (msg.payload && msg.payload.poor) ? '#EA5353' : '#5CD65C', color: '#ffffff', padding: '16px', borderRadius: '8px', textAlign: 'center', fontSize: '20px', fontWeight: 'bold', transition: 'background 0.3s'}\">\n    {{ (msg.payload && msg.payload.poor) ? 'KHONG KHI KEM' : 'KHONG KHI TOT' }}\n  </div>\n</template>\n\n<script>\nexport default {\n  data() {\n    return {}\n  }\n}\n</script>\n",
-        "storeOutMessages": true,
-        "passthru": false,
-        "resendOnRefresh": true,
-        "templateScope": "local",
-        "className": "",
-        "x": 680,
-        "y": 180,
-        "wires": [[]]
-    },
-    {
-        "id": "text-aq-last-update",
-        "type": "ui-text",
-        "z": "airquality-tab",
-        "group": "ui-group-aq-status",
-        "order": 3,
-        "width": 6,
-        "height": 1,
-        "name": "AQ Last update",
-        "label": "",
-        "format": "{{msg.payload}}",
-        "layout": "row-spread",
-        "style": false,
-        "font": "Helvetica",
-        "fontSize": 14,
-        "color": "#717171",
-        "wrapText": false,
-        "className": "",
-        "x": 680,
-        "y": 240,
-        "wires": []
-    },
-    {
-        "id": "chart-co2",
-        "type": "ui-chart",
-        "z": "airquality-tab",
-        "name": "AQ history",
-        "group": "ui-group-aq-history",
-        "label": "CO2-eq ppm history",
-        "order": 1,
-        "chartType": "line",
-        "category": "topic",
-        "categoryType": "msg",
-        "xAxisLabel": "",
-        "xAxisProperty": null,
-        "xAxisPropertyType": "timestamp",
-        "xAxisType": "time",
-        "xAxisFormat": "",
-        "xAxisFormatType": "auto",
-        "xmin": "",
-        "xmax": "",
-        "yAxisLabel": "ppm",
-        "yAxisProperty": "payload",
-        "yAxisPropertyType": "msg",
-        "ymin": "400",
-        "ymax": "3000",
-        "action": "append",
-        "stackSeries": false,
-        "pointShape": "circle",
-        "pointRadius": 4,
-        "showLegend": false,
-        "removeOlder": 1,
-        "removeOlderUnit": "3600",
-        "removeOlderPoints": "",
-        "colors": ["#7B61FF"],
-        "textColorDefault": true,
-        "gridColorDefault": true,
-        "width": 12,
-        "height": 8,
-        "className": "",
-        "x": 680,
-        "y": 320,
-        "wires": []
+    "sizes": {
+      "density": "default",
+      "pagePadding": "12px",
+      "groupGap": "12px",
+      "groupBorderRadius": "6px",
+      "widgetGap": "12px"
     }
+  },
+  {
+    "id": "ui-page-airgas",
+    "type": "ui-page",
+    "name": "Trạm cảnh báo gas",
+    "ui": "ui-base-airgas",
+    "path": "/gas",
+    "icon": "gas-cylinder",
+    "layout": "grid",
+    "theme": "ui-theme-airgas",
+    "breakpoints": [
+      {
+        "name": "Default",
+        "px": "0",
+        "cols": "3"
+      },
+      {
+        "name": "Tablet",
+        "px": "576",
+        "cols": "6"
+      },
+      {
+        "name": "Small Desktop",
+        "px": "768",
+        "cols": "9"
+      },
+      {
+        "name": "Desktop",
+        "px": "1024",
+        "cols": "12"
+      }
+    ],
+    "order": 1,
+    "className": "",
+    "visible": true,
+    "disabled": false
+  },
+  {
+    "id": "grp-state",
+    "type": "ui-group",
+    "name": "Trạng thái hệ thống",
+    "page": "ui-page-airgas",
+    "width": "6",
+    "height": "1",
+    "order": 1,
+    "showTitle": true,
+    "className": "",
+    "visible": true,
+    "disabled": false,
+    "groupType": "default"
+  },
+  {
+    "id": "grp-sensors",
+    "type": "ui-group",
+    "name": "Cảm biến",
+    "page": "ui-page-airgas",
+    "width": "6",
+    "height": "1",
+    "order": 2,
+    "showTitle": true,
+    "className": "",
+    "visible": true,
+    "disabled": false,
+    "groupType": "default"
+  },
+  {
+    "id": "grp-control",
+    "type": "ui-group",
+    "name": "Điều khiển & xác nhận",
+    "page": "ui-page-airgas",
+    "width": "6",
+    "height": "1",
+    "order": 3,
+    "showTitle": true,
+    "className": "",
+    "visible": true,
+    "disabled": false,
+    "groupType": "default"
+  },
+  {
+    "id": "grp-history",
+    "type": "ui-group",
+    "name": "Lịch sử 1 giờ",
+    "page": "ui-page-airgas",
+    "width": "12",
+    "height": "1",
+    "order": 4,
+    "showTitle": true,
+    "className": "",
+    "visible": true,
+    "disabled": false,
+    "groupType": "default"
+  },
+  {
+    "id": "tab-monitor",
+    "type": "tab",
+    "label": "1. Luồng giám sát",
+    "disabled": false,
+    "info": "MQ2 + MQ135 → ESP32 → MQTT → Node-RED → Home Assistant.\nGộp reading / info / status của thiết bị thành một trạng thái, đăng lên airgas/<dev>/state cho Home Assistant và đẩy ra dashboard."
+  },
+  {
+    "id": "tab-emergency",
+    "type": "tab",
+    "label": "2. Luồng khẩn cấp",
+    "disabled": false,
+    "info": "ESP32 tự khoá van, bật quạt, bật còi ngay tại chỗ (firmware).\nNode-RED nhận các lần chuyển trạng thái, tạo cảnh báo và gửi Discord, đồng thời hiện thông báo trên dashboard và ghi log.\nDiscord: đặt DISCORD_WEBHOOK_URL trong node-red/.env. Tin rò gas / không khí kém / khoá van do ESP32 tự gửi nên Node-RED không gửi lại."
+  },
+  {
+    "id": "tab-control",
+    "type": "tab",
+    "label": "3. Dashboard & xác nhận",
+    "disabled": false,
+    "info": "Dashboard /dashboard/gas. Sau khi gas về mức an toàn, van vẫn khoá cho tới khi người dùng bấm \"Xác nhận an toàn – Mở van\". Thiết bị từ chối mở khi còn báo động."
+  },
+  {
+    "id": "tab-ha",
+    "type": "tab",
+    "label": "4. Home Assistant & log",
+    "disabled": false,
+    "info": "Gửi cấu hình MQTT discovery để Home Assistant tự tạo thiết bị \"Trạm cảnh báo gas\" (cảm biến gas, CO2, mức cảnh báo, van, quạt, nút mở/khoá van). Ghi log CSV vào /data/logs."
+  },
+  {
+    "id": "cmt-monitor",
+    "type": "comment",
+    "z": "tab-monitor",
+    "name": "MQ2 + MQ135 → ESP32 → MQTT → Node-RED → Home Assistant",
+    "info": "",
+    "x": 330,
+    "y": 40,
+    "wires": []
+  },
+  {
+    "id": "sub-reading",
+    "type": "mqtt in",
+    "z": "tab-monitor",
+    "name": "airgas/+/reading",
+    "topic": "airgas/+/reading",
+    "qos": "1",
+    "datatype": "json",
+    "broker": "airgas-broker",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 170,
+    "y": 100,
+    "wires": [
+      [
+        "fn-merge"
+      ]
+    ]
+  },
+  {
+    "id": "sub-air",
+    "type": "mqtt in",
+    "z": "tab-monitor",
+    "name": "airquality/+/reading",
+    "topic": "airquality/+/reading",
+    "qos": "1",
+    "datatype": "json",
+    "broker": "airgas-broker",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 170,
+    "y": 160,
+    "wires": [
+      [
+        "fn-merge"
+      ]
+    ]
+  },
+  {
+    "id": "sub-info",
+    "type": "mqtt in",
+    "z": "tab-monitor",
+    "name": "airgas/+/info",
+    "topic": "airgas/+/info",
+    "qos": "1",
+    "datatype": "json",
+    "broker": "airgas-broker",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 170,
+    "y": 220,
+    "wires": [
+      [
+        "fn-merge"
+      ]
+    ]
+  },
+  {
+    "id": "sub-status",
+    "type": "mqtt in",
+    "z": "tab-monitor",
+    "name": "airgas/+/status",
+    "topic": "airgas/+/status",
+    "qos": "1",
+    "datatype": "utf8",
+    "broker": "airgas-broker",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 170,
+    "y": 280,
+    "wires": [
+      [
+        "fn-merge"
+      ]
+    ]
+  },
+  {
+    "id": "sub-ack",
+    "type": "mqtt in",
+    "z": "tab-monitor",
+    "name": "airgas/+/ack",
+    "topic": "airgas/+/ack",
+    "qos": "1",
+    "datatype": "json",
+    "broker": "airgas-broker",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 170,
+    "y": 340,
+    "wires": [
+      [
+        "fn-merge"
+      ]
+    ]
+  },
+  {
+    "id": "fn-merge",
+    "type": "function",
+    "z": "tab-monitor",
+    "name": "Gộp trạng thái & phát hiện chuyển trạng thái",
+    "func": "// Gộp mọi gói của một thiết bị thành một trạng thái và phát hiện lúc chuyển trạng thái.\n// Ra 1: trạng thái (airgas/<dev>/state) · Ra 2: sự kiện cảnh báo · Ra 3: phản hồi lệnh (ack)\nconst parts = msg.topic.split('/');\nconst dev = parts[1];\nconst kind = parts[0] === 'airquality' ? 'air' : parts[2];\nconst p = msg.payload;\n\nif (kind === 'ack') {\n    return [null, null, { topic: dev, payload: p }];\n}\n\nconst all = flow.get('devices') || {};\nconst prev = all[dev] || { device: dev, online: false, valve: 'open', fan: 0 };\nconst s = Object.assign({}, prev);\n\nswitch (kind) {\n    case 'reading':\n        s.gas = { ppm: p.ppm, mv: p.mv, threshold: p.threshold, alarm: !!p.alarm, sim: !!p.sim, fault: !!p.fault };\n        break;\n    case 'air':\n        s.air = { co2: p.co2_ppm, mv: p.mv, threshold: p.threshold, poor: !!p.poor, sim: !!p.sim, fault: !!p.fault };\n        break;\n    case 'info':\n        s.fw = p.fw; s.ip = p.ip; s.rssi = p.rssi; s.sim = p.sim;\n        if (p.valve) s.valve = p.valve;\n        if (typeof p.fan === 'number') s.fan = p.fan;\n        break;\n    case 'status':\n        s.online = String(p).trim() === 'online';\n        break;\n    default:\n        return null;\n}\n// a reading or info only arrives from a live device\nif (kind !== 'status') s.online = true;\n\nlet level = 'BINH_THUONG';\nif (s.gas && s.gas.alarm) level = 'NGUY_HIEM';\nelse if (s.air && s.air.poor) level = 'KHONG_KHI_KEM';\nelse if ((s.gas && s.gas.fault) || (s.air && s.air.fault)) level = 'LOI_CAM_BIEN';\ns.level = level;\n// còi do ESP32 tự điều khiển (gas_buzzer.c): suy ra từ cờ báo động giống firmware\ns.buzzer = (s.gas && s.gas.alarm) ? 'fast' : ((s.air && s.air.poor) ? 'slow' : 'off');\ns.updated = new Date().toISOString();\nall[dev] = s;\nflow.set('devices', all);\n\n// ---- sự kiện: chỉ khi trạng thái đổi, để không spam tin nhắn\nconst events = [];\nconst was = prev.level || 'BINH_THUONG';\nconst sim = (s.gas && s.gas.sim) || (s.air && s.air.sim);\nconst tag = sim ? '[GIẢ LẬP] ' : '';\nconst gasPpm = s.gas ? Math.round(s.gas.ppm) : '?';\nconst co2 = s.air ? Math.round(s.air.co2) : '?';\nif (level !== was) {\n    if (level === 'NGUY_HIEM') {\n        events.push({ type: 'danger', text: `🚨 ${tag}RÒ RỈ GAS ~${gasPpm} ppm tại ${dev}. Thiết bị đã khoá van, bật quạt hút và còi.` });\n    } else if (was === 'NGUY_HIEM') {\n        events.push({ type: 'safe', text: s.valve === 'closed'\n            ? `✅ ${tag}Nồng độ gas đã về mức an toàn (~${gasPpm} ppm). Van vẫn KHOÁ: mở dashboard và bấm \"Xác nhận an toàn – Mở van\".`\n            : `✅ ${tag}Nồng độ gas đã về mức an toàn (~${gasPpm} ppm).` });\n    }\n    if (level === 'KHONG_KHI_KEM') {\n        events.push({ type: 'poor', text: `⚠️ ${tag}Không khí kém ~${co2} ppm CO2eq tại ${dev}. Quạt hút đang chạy.` });\n    }\n    if (level === 'LOI_CAM_BIEN') {\n        const which = [s.gas && s.gas.fault ? 'MQ-2' : null, s.air && s.air.fault ? 'MQ-135' : null].filter(Boolean).join(', ');\n        events.push({ type: 'fault', text: `🔌 ${which} mất tín hiệu (không có điện hoặc lỏng dây VCC).` });\n    }\n}\nif (prev.online && !s.online) {\n    events.push({ type: 'offline', text: `📴 ${dev} mất kết nối với broker.` });\n}\nif (prev.valve !== s.valve && kind === 'info' && prev.valve) {\n    events.push({ type: 'valve', text: s.valve === 'closed' ? `🔒 Van gas đã KHOÁ.` : `🔓 Van gas đã MỞ lại.` });\n}\n\nconst stateMsg = { topic: `airgas/${dev}/state`, payload: s, retain: true };\nnode.status({ fill: level === 'BINH_THUONG' ? 'green' : (level === 'NGUY_HIEM' ? 'red' : 'yellow'),\n              shape: s.online ? 'dot' : 'ring', text: `${dev}: ${level} · van ${s.valve} · quạt ${s.fan}%` });\nreturn [stateMsg, events.map(e => ({ topic: dev, event: e.type, payload: e.text, state: s })), null];\n",
+    "outputs": 3,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 500,
+    "y": 220,
+    "wires": [
+      [
+        "fn-throttle-state",
+        "link-out-state"
+      ],
+      [
+        "link-out-events"
+      ],
+      [
+        "link-out-ack"
+      ]
+    ]
+  },
+  {
+    "id": "fn-throttle-state",
+    "type": "function",
+    "z": "tab-monitor",
+    "name": "Giới hạn tần suất gửi HA",
+    "func": "// Home Assistant không cần 3 gói/giây: gửi khi mức cảnh báo / van / quạt / online đổi,\n// còn lại tối đa 5 giây một lần.\nconst s = msg.payload;\nconst key = [s.level, s.valve, s.fan, s.buzzer, s.online].join('|');\nconst last = context.get('last') || { key: '', t: 0 };\nconst now = Date.now();\nif (key !== last.key || now - last.t >= 5000) {\n    context.set('last', { key, t: now });\n    return msg;\n}\nreturn null;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 820,
+    "y": 180,
+    "wires": [
+      [
+        "mqtt-out-state",
+        "link-out-log"
+      ]
+    ]
+  },
+  {
+    "id": "mqtt-out-state",
+    "type": "mqtt out",
+    "z": "tab-monitor",
+    "name": "airgas/<dev>/state (retain)",
+    "topic": "",
+    "qos": "1",
+    "retain": "",
+    "respTopic": "",
+    "contentType": "",
+    "userProps": "",
+    "correl": "",
+    "expiry": "",
+    "broker": "airgas-broker",
+    "x": 1100,
+    "y": 180,
+    "wires": []
+  },
+  {
+    "id": "link-out-state",
+    "type": "link out",
+    "z": "tab-monitor",
+    "name": "→ dashboard, hành động tại chỗ",
+    "mode": "link",
+    "links": [
+      "link-in-state",
+      "link-in-local"
+    ],
+    "x": 775,
+    "y": 240,
+    "wires": []
+  },
+  {
+    "id": "link-out-events",
+    "type": "link out",
+    "z": "tab-monitor",
+    "name": "→ luồng khẩn cấp",
+    "mode": "link",
+    "links": [
+      "link-in-events"
+    ],
+    "x": 775,
+    "y": 280,
+    "wires": []
+  },
+  {
+    "id": "link-out-ack",
+    "type": "link out",
+    "z": "tab-monitor",
+    "name": "→ phản hồi lệnh",
+    "mode": "link",
+    "links": [
+      "link-in-ack"
+    ],
+    "x": 775,
+    "y": 320,
+    "wires": []
+  },
+  {
+    "id": "link-out-log",
+    "type": "link out",
+    "z": "tab-monitor",
+    "name": "→ log",
+    "mode": "link",
+    "links": [
+      "link-in-log"
+    ],
+    "x": 1055,
+    "y": 220,
+    "wires": []
+  },
+  {
+    "id": "cmt-emergency",
+    "type": "comment",
+    "z": "tab-emergency",
+    "name": "ESP32 cảnh báo → (khoá van · bật quạt · bật còi tại chỗ) → Node-RED tạo cảnh báo → Discord",
+    "info": "",
+    "x": 430,
+    "y": 40,
+    "wires": []
+  },
+  {
+    "id": "link-in-events",
+    "type": "link in",
+    "z": "tab-emergency",
+    "name": "sự kiện",
+    "links": [
+      "link-out-events"
+    ],
+    "x": 95,
+    "y": 140,
+    "wires": [
+      [
+        "fn-cooldown"
+      ]
+    ]
+  },
+  {
+    "id": "fn-cooldown",
+    "type": "function",
+    "z": "tab-emergency",
+    "name": "Chống spam 30 s",
+    "func": "// Chặn lặp: cùng một loại sự kiện của cùng thiết bị chỉ gửi lại sau 30 giây\n// (cảm biến dao động quanh ngưỡng sẽ không làm nổ tin nhắn).\nconst key = msg.topic + ':' + msg.event;\nconst sent = context.get('sent') || {};\nconst now = Date.now();\nif (sent[key] && now - sent[key] < 30000) return null;\nsent[key] = now;\ncontext.set('sent', sent);\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 260,
+    "y": 140,
+    "wires": [
+      [
+        "fn-discord",
+        "link-out-notify",
+        "fn-alert-log",
+        "debug-alert"
+      ]
+    ]
+  },
+  {
+    "id": "fn-discord",
+    "type": "function",
+    "z": "tab-emergency",
+    "name": "Soạn tin Discord",
+    "func": "// Soạn tin Discord. Webhook lấy từ biến môi trường DISCORD_WEBHOOK_URL (node-red/.env).\n// ESP32 đã tự gửi Discord khi rò gas, không khí kém và khi khoá van, nên ở đây chỉ gửi\n// các tin thiết bị không tự gửi được: an toàn chờ xác nhận, mất tín hiệu cảm biến,\n// mất kết nối, van mở lại.\nconst FROM_ESP32 = ['danger', 'poor'];\nif (FROM_ESP32.includes(msg.event) || (msg.event === 'valve' && msg.state && msg.state.valve === 'closed')) {\n    node.status({ fill: 'grey', shape: 'dot', text: msg.event + ': ESP32 tự gửi' });\n    return null;\n}\nconst url = env.get('DISCORD_WEBHOOK_URL');\nif (!url) {\n    node.status({ fill: 'grey', shape: 'ring', text: 'chưa cấu hình DISCORD_WEBHOOK_URL (.env)' });\n    return null;\n}\nnode.status({ fill: 'blue', shape: 'dot', text: 'gửi: ' + msg.event });\nmsg.url = url;\nmsg.method = 'POST';\nmsg.headers = { 'content-type': 'application/json' };\nmsg.payload = { username: 'Node-RED · Trạm cảnh báo gas', content: `**${msg.topic}** – ${msg.payload}` };\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 500,
+    "y": 100,
+    "wires": [
+      [
+        "http-discord"
+      ]
+    ]
+  },
+  {
+    "id": "http-discord",
+    "type": "http request",
+    "z": "tab-emergency",
+    "name": "Discord webhook",
+    "method": "use",
+    "ret": "txt",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "insecureHTTPParser": false,
+    "authType": "",
+    "senderr": false,
+    "headers": [],
+    "x": 720,
+    "y": 100,
+    "wires": [
+      [
+        "fn-discord-result"
+      ]
+    ]
+  },
+  {
+    "id": "fn-discord-result",
+    "type": "function",
+    "z": "tab-emergency",
+    "name": "Kết quả gửi",
+    "func": "// Discord trả 204 No Content khi nhận tin\nif (msg.statusCode >= 200 && msg.statusCode < 300) {\n    node.status({ fill: 'green', shape: 'dot', text: 'đã gửi ' + new Date().toLocaleTimeString('vi-VN') });\n} else {\n    node.status({ fill: 'red', shape: 'dot', text: 'lỗi ' + msg.statusCode });\n    node.warn(msg.payload);\n}\nreturn null;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 920,
+    "y": 100,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "link-out-notify",
+    "type": "link out",
+    "z": "tab-emergency",
+    "name": "→ thông báo dashboard",
+    "mode": "link",
+    "links": [
+      "link-in-notify"
+    ],
+    "x": 495,
+    "y": 160,
+    "wires": []
+  },
+  {
+    "id": "fn-alert-log",
+    "type": "function",
+    "z": "tab-emergency",
+    "name": "Dòng CSV cảnh báo",
+    "func": "const t = new Date().toISOString();\nmsg.payload = `${t},${msg.topic},${msg.event},\"${String(msg.payload).replace(/\"/g, \"'\")}\"`;\nmsg.filename = '/data/logs/alerts.csv';\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 500,
+    "y": 200,
+    "wires": [
+      [
+        "file-alert-log"
+      ]
+    ]
+  },
+  {
+    "id": "file-alert-log",
+    "type": "file",
+    "z": "tab-emergency",
+    "name": "/data/logs/alerts.csv",
+    "filename": "filename",
+    "filenameType": "msg",
+    "appendNewline": true,
+    "createDir": true,
+    "overwriteFile": "false",
+    "encoding": "utf8",
+    "x": 740,
+    "y": 200,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "debug-alert",
+    "type": "debug",
+    "z": "tab-emergency",
+    "name": "Cảnh báo",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": true,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "event",
+    "statusType": "msg",
+    "x": 480,
+    "y": 240,
+    "wires": []
+  },
+  {
+    "id": "cmt-local",
+    "type": "comment",
+    "z": "tab-emergency",
+    "name": "Ba hành động chạy đồng thời trên ESP32 (Node-RED chỉ theo dõi trạng thái thật)",
+    "info": "Firmware: gas_valve.c (servo GPIO13), gas_fan.c (MOSFET GPIO18), gas_buzzer.c (GPIO4).\nRò gas → khoá van + quạt 100% + còi bíp nhanh. Không khí kém → quạt 60% + còi bíp chậm.\nHết gas → quạt chạy thêm 60 s, van vẫn khoá tới khi có lệnh mở.",
+    "x": 360,
+    "y": 320,
+    "wires": []
+  },
+  {
+    "id": "link-in-local",
+    "type": "link in",
+    "z": "tab-emergency",
+    "name": "trạng thái",
+    "links": [
+      "link-out-state"
+    ],
+    "x": 95,
+    "y": 400,
+    "wires": [
+      [
+        "fn-local-split"
+      ]
+    ]
+  },
+  {
+    "id": "fn-local-split",
+    "type": "function",
+    "z": "tab-emergency",
+    "name": "ESP32 cảnh báo – tách 3 hành động",
+    "func": "// Tách trạng thái 3 cơ cấu chấp hành, chỉ gửi khi đổi\nconst s = msg.payload;\nconst now = { valve: s.valve, fan: s.fan, buzzer: s.buzzer, online: s.online };\nconst last = context.get('last') || {};\ncontext.set('last', now);\nconst out = [null, null, null];\nif (now.valve !== last.valve || now.online !== last.online) out[0] = { payload: s.valve, online: s.online };\nif (now.fan !== last.fan || now.online !== last.online) out[1] = { payload: s.fan, online: s.online };\nif (now.buzzer !== last.buzzer || now.online !== last.online) out[2] = { payload: s.buzzer, online: s.online };\nreturn out;\n",
+    "outputs": 3,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 300,
+    "y": 400,
+    "wires": [
+      [
+        "fn-show-valve"
+      ],
+      [
+        "fn-show-fan"
+      ],
+      [
+        "fn-show-buzzer"
+      ]
+    ]
+  },
+  {
+    "id": "fn-show-valve",
+    "type": "function",
+    "z": "tab-emergency",
+    "name": "KHÓA VAN (servo GPIO13)",
+    "func": "const closed = msg.payload === 'closed';\nnode.status({ fill: closed ? 'red' : 'green', shape: msg.online ? 'dot' : 'ring',\n              text: closed ? 'Van ĐÃ KHOÁ' : 'Van đang mở' });\nreturn null;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 600,
+    "y": 360,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "fn-show-fan",
+    "type": "function",
+    "z": "tab-emergency",
+    "name": "BẬT QUẠT (MOSFET GPIO18)",
+    "func": "const pct = Number(msg.payload) || 0;\nnode.status({ fill: pct ? 'blue' : 'grey', shape: msg.online ? 'dot' : 'ring',\n              text: pct ? `Quạt hút chạy ${pct}%` : 'Quạt tắt' });\nreturn null;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 600,
+    "y": 400,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "fn-show-buzzer",
+    "type": "function",
+    "z": "tab-emergency",
+    "name": "BẬT CÒI (GPIO4)",
+    "func": "const t = { fast: 'Còi bíp nhanh (rò gas)', slow: 'Còi bíp chậm (không khí kém)', off: 'Còi im' };\nnode.status({ fill: msg.payload === 'off' ? 'grey' : 'red', shape: msg.online ? 'dot' : 'ring',\n              text: t[msg.payload] || msg.payload });\nreturn null;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 600,
+    "y": 440,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "cmt-control",
+    "type": "comment",
+    "z": "tab-control",
+    "name": "Dashboard: http://localhost:1880/dashboard/gas · Van chỉ mở lại khi người dùng xác nhận",
+    "info": "",
+    "x": 380,
+    "y": 40,
+    "wires": []
+  },
+  {
+    "id": "link-in-state",
+    "type": "link in",
+    "z": "tab-control",
+    "name": "trạng thái",
+    "links": [
+      "link-out-state"
+    ],
+    "x": 95,
+    "y": 120,
+    "wires": [
+      [
+        "fn-split-ui"
+      ]
+    ]
+  },
+  {
+    "id": "fn-split-ui",
+    "type": "function",
+    "z": "tab-control",
+    "name": "Tách dữ liệu dashboard",
+    "func": "// Tách trạng thái ra từng widget: thẻ trạng thái, 2 đồng hồ, 2 đường biểu đồ.\nconst s = msg.payload;\nconst gas = s.gas && !s.gas.fault ? Math.round(s.gas.ppm) : null;\nconst co2 = s.air && !s.air.fault ? Math.round(s.air.co2) : null;\nconst chart = [];\nif (msg.topic.endsWith('/state') && s.gas && gas !== null) chart.push({ topic: 'Gas (ppm)', payload: gas });\nif (s.air && co2 !== null) chart.push({ topic: 'CO2eq (ppm)', payload: co2 });\nreturn [\n    { payload: s },\n    gas === null ? null : { payload: gas },\n    co2 === null ? null : { payload: co2 },\n    chart,\n];\n",
+    "outputs": 4,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 280,
+    "y": 120,
+    "wires": [
+      [
+        "ui-state-card"
+      ],
+      [
+        "ui-gauge-gas"
+      ],
+      [
+        "ui-gauge-co2"
+      ],
+      [
+        "fn-chart-rate"
+      ]
+    ]
+  },
+  {
+    "id": "fn-chart-rate",
+    "type": "function",
+    "z": "tab-control",
+    "name": "1 điểm / 5 s",
+    "func": "// biểu đồ: mỗi đường 1 điểm / 5 giây\nconst last = context.get(msg.topic) || 0;\nif (Date.now() - last < 5000) return null;\ncontext.set(msg.topic, Date.now());\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 520,
+    "y": 240,
+    "wires": [
+      [
+        "ui-chart-history"
+      ]
+    ]
+  },
+  {
+    "id": "ui-state-card",
+    "type": "ui-template",
+    "z": "tab-control",
+    "group": "grp-state",
+    "page": "",
+    "ui": "",
+    "name": "Thẻ trạng thái",
+    "order": 1,
+    "width": "6",
+    "height": "5",
+    "head": "",
+    "format": "<template>\n  <div v-if=\"msg && msg.payload\" class=\"card\" :class=\"lv\">\n    <div class=\"big\">{{ title }}</div>\n    <div class=\"row\"><span>Thiết bị</span><b>{{ s.device }} · {{ s.online ? 'online' : 'OFFLINE' }}</b></div>\n    <div class=\"row\"><span>Van gas</span><b>{{ s.valve === 'closed' ? 'ĐÃ KHOÁ' : 'Đang mở' }}</b></div>\n    <div class=\"row\"><span>Quạt hút</span><b>{{ s.fan ? s.fan + '%' : 'Tắt' }}</b></div>\n    <div class=\"row\"><span>Còi</span><b>{{ buzzer }}</b></div>\n    <div class=\"row\" v-if=\"s.gas && s.gas.fault\"><span>MQ-2</span><b>mất tín hiệu</b></div>\n    <div class=\"row\" v-if=\"s.air && s.air.fault\"><span>MQ-135</span><b>mất tín hiệu</b></div>\n    <div class=\"row\" v-if=\"sim\"><span>Chế độ</span><b>GIẢ LẬP</b></div>\n    <div class=\"note\" v-if=\"s.valve === 'closed' && s.level !== 'NGUY_HIEM'\">\n      Gas đã an toàn. Bấm \"Xác nhận an toàn – Mở van\" để mở lại.\n    </div>\n    <div class=\"row small\"><span>Firmware {{ s.fw || '?' }}</span><span>{{ s.ip || '' }} · RSSI {{ s.rssi ?? '?' }}</span></div>\n  </div>\n  <div v-else class=\"card\">Đang chờ dữ liệu từ thiết bị…</div>\n</template>\n\n<script>\nexport default {\n  computed: {\n    s () { return (this.msg && this.msg.payload) || {} },\n    lv () { return this.s.online ? (this.s.level || 'BINH_THUONG') : 'OFFLINE' },\n    title () {\n      return { BINH_THUONG: 'BÌNH THƯỜNG', NGUY_HIEM: 'NGUY HIỂM – RÒ GAS', KHONG_KHI_KEM: 'KHÔNG KHÍ KÉM',\n               LOI_CAM_BIEN: 'LỖI CẢM BIẾN', OFFLINE: 'MẤT KẾT NỐI' }[this.lv]\n    },\n    buzzer () {\n      return { fast: 'Bíp nhanh', slow: 'Bíp chậm', off: 'Im' }[this.s.buzzer] || 'Im'\n    },\n    sim () { return (this.s.gas && this.s.gas.sim) || (this.s.air && this.s.air.sim) }\n  }\n}\n</script>\n\n<style scoped>\n.card { border-radius: 8px; padding: 14px 16px; color: #fff; background: #2e7d32; display: flex; flex-direction: column; gap: 6px; }\n.card.NGUY_HIEM { background: #c62828; }\n.card.KHONG_KHI_KEM, .card.LOI_CAM_BIEN { background: #ef6c00; }\n.card.OFFLINE { background: #546e7a; }\n.big { font-size: 22px; font-weight: 700; letter-spacing: .5px; }\n.row { display: flex; justify-content: space-between; gap: 12px; }\n.small { font-size: 12px; opacity: .85; }\n.note { background: rgba(255,255,255,.18); border-radius: 6px; padding: 8px; font-size: 13px; }\n</style>\n",
+    "storeOutMessages": true,
+    "passthru": false,
+    "resendOnRefresh": true,
+    "templateScope": "local",
+    "className": "",
+    "x": 560,
+    "y": 80,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "ui-gauge-gas",
+    "type": "ui-gauge",
+    "z": "tab-control",
+    "name": "Gas",
+    "group": "grp-sensors",
+    "order": 1,
+    "value": "payload",
+    "valueType": "msg",
+    "width": 3,
+    "height": 3,
+    "gtype": "gauge-half",
+    "gstyle": "needle",
+    "title": "Gas (MQ-2)",
+    "alwaysShowTitle": true,
+    "floatingTitlePosition": "top-left",
+    "units": "ppm",
+    "icon": "",
+    "prefix": "",
+    "suffix": "",
+    "segments": [
+      {
+        "color": "#43A047",
+        "from": 0
+      },
+      {
+        "color": "#FFB300",
+        "from": 500
+      },
+      {
+        "color": "#E53935",
+        "from": 1000
+      }
+    ],
+    "min": 0,
+    "max": 3000,
+    "sizeThickness": 16,
+    "sizeGap": 4,
+    "sizeKeyThickness": 8,
+    "styleRounded": true,
+    "styleGlow": false,
+    "className": "",
+    "x": 540,
+    "y": 140,
+    "wires": []
+  },
+  {
+    "id": "ui-gauge-co2",
+    "type": "ui-gauge",
+    "z": "tab-control",
+    "name": "CO2",
+    "group": "grp-sensors",
+    "order": 2,
+    "value": "payload",
+    "valueType": "msg",
+    "width": 3,
+    "height": 3,
+    "gtype": "gauge-half",
+    "gstyle": "needle",
+    "title": "CO2eq (MQ-135)",
+    "alwaysShowTitle": true,
+    "floatingTitlePosition": "top-left",
+    "units": "ppm",
+    "icon": "",
+    "prefix": "",
+    "suffix": "",
+    "segments": [
+      {
+        "color": "#43A047",
+        "from": 0
+      },
+      {
+        "color": "#FFB300",
+        "from": 1000
+      },
+      {
+        "color": "#E53935",
+        "from": 1500
+      }
+    ],
+    "min": 0,
+    "max": 3000,
+    "sizeThickness": 16,
+    "sizeGap": 4,
+    "sizeKeyThickness": 8,
+    "styleRounded": true,
+    "styleGlow": false,
+    "className": "",
+    "x": 540,
+    "y": 190,
+    "wires": []
+  },
+  {
+    "id": "ui-chart-history",
+    "type": "ui-chart",
+    "z": "tab-control",
+    "name": "Lịch sử",
+    "group": "grp-history",
+    "label": "Gas và CO2eq",
+    "order": 1,
+    "chartType": "line",
+    "category": "topic",
+    "categoryType": "msg",
+    "xAxisLabel": "",
+    "xAxisProperty": "",
+    "xAxisPropertyType": "timestamp",
+    "xAxisType": "time",
+    "xAxisFormat": "",
+    "xAxisFormatType": "auto",
+    "xmin": "",
+    "xmax": "",
+    "yAxisLabel": "ppm",
+    "yAxisProperty": "payload",
+    "yAxisPropertyType": "msg",
+    "ymin": "0",
+    "ymax": "",
+    "action": "append",
+    "stackSeries": false,
+    "pointShape": "false",
+    "pointRadius": 2,
+    "showLegend": true,
+    "removeOlder": 1,
+    "removeOlderUnit": "3600",
+    "removeOlderPoints": "",
+    "colors": [
+      "#E53935",
+      "#1E88E5"
+    ],
+    "textColorDefault": true,
+    "gridColorDefault": true,
+    "width": 12,
+    "height": 6,
+    "className": "",
+    "x": 720,
+    "y": 240,
+    "wires": []
+  },
+  {
+    "id": "btn-open",
+    "type": "ui-button",
+    "z": "tab-control",
+    "group": "grp-control",
+    "name": "Xác nhận an toàn – Mở van",
+    "label": "Xác nhận an toàn – Mở van",
+    "order": 1,
+    "width": "6",
+    "height": "1",
+    "emulateClick": false,
+    "tooltip": "",
+    "color": "#ffffff",
+    "bgcolor": "#2e7d32",
+    "className": "",
+    "icon": "",
+    "iconPosition": "left",
+    "payload": "{\"valve\": \"open\"}",
+    "payloadType": "json",
+    "topic": "topic",
+    "topicType": "msg",
+    "buttonColor": "#2e7d32",
+    "textColor": "#ffffff",
+    "iconColor": "",
+    "enableClick": true,
+    "enablePointerdown": false,
+    "pointerdownPayload": "",
+    "pointerdownPayloadType": "str",
+    "enablePointerup": false,
+    "pointerupPayload": "",
+    "pointerupPayloadType": "str",
+    "x": 200,
+    "y": 340,
+    "wires": [
+      [
+        "mqtt-out-cmd"
+      ]
+    ]
+  },
+  {
+    "id": "btn-close",
+    "type": "ui-button",
+    "z": "tab-control",
+    "group": "grp-control",
+    "name": "Khoá van ngay",
+    "label": "Khoá van ngay",
+    "order": 2,
+    "width": "6",
+    "height": "1",
+    "emulateClick": false,
+    "tooltip": "",
+    "color": "#ffffff",
+    "bgcolor": "#c62828",
+    "className": "",
+    "icon": "",
+    "iconPosition": "left",
+    "payload": "{\"valve\": \"close\"}",
+    "payloadType": "json",
+    "topic": "topic",
+    "topicType": "msg",
+    "buttonColor": "#c62828",
+    "textColor": "#ffffff",
+    "iconColor": "",
+    "enableClick": true,
+    "enablePointerdown": false,
+    "pointerdownPayload": "",
+    "pointerdownPayloadType": "str",
+    "enablePointerup": false,
+    "pointerupPayload": "",
+    "pointerupPayloadType": "str",
+    "x": 200,
+    "y": 385,
+    "wires": [
+      [
+        "mqtt-out-cmd"
+      ]
+    ]
+  },
+  {
+    "id": "btn-sim-gas",
+    "type": "ui-button",
+    "z": "tab-control",
+    "group": "grp-control",
+    "name": "Giả lập rò gas 30 giây",
+    "label": "Giả lập rò gas 30 giây",
+    "order": 3,
+    "width": "6",
+    "height": "1",
+    "emulateClick": false,
+    "tooltip": "",
+    "color": "#ffffff",
+    "bgcolor": "#6d4c41",
+    "className": "",
+    "icon": "",
+    "iconPosition": "left",
+    "payload": "{\"sim\": \"gas\", \"duration\": 30, \"discord\": false}",
+    "payloadType": "json",
+    "topic": "topic",
+    "topicType": "msg",
+    "buttonColor": "#6d4c41",
+    "textColor": "#ffffff",
+    "iconColor": "",
+    "enableClick": true,
+    "enablePointerdown": false,
+    "pointerdownPayload": "",
+    "pointerdownPayloadType": "str",
+    "enablePointerup": false,
+    "pointerupPayload": "",
+    "pointerupPayloadType": "str",
+    "x": 200,
+    "y": 430,
+    "wires": [
+      [
+        "mqtt-out-cmd"
+      ]
+    ]
+  },
+  {
+    "id": "btn-sim-air",
+    "type": "ui-button",
+    "z": "tab-control",
+    "group": "grp-control",
+    "name": "Giả lập không khí kém 30 giây",
+    "label": "Giả lập không khí kém 30 giây",
+    "order": 4,
+    "width": "6",
+    "height": "1",
+    "emulateClick": false,
+    "tooltip": "",
+    "color": "#ffffff",
+    "bgcolor": "#6d4c41",
+    "className": "",
+    "icon": "",
+    "iconPosition": "left",
+    "payload": "{\"sim\": \"air\", \"duration\": 30, \"discord\": false}",
+    "payloadType": "json",
+    "topic": "topic",
+    "topicType": "msg",
+    "buttonColor": "#6d4c41",
+    "textColor": "#ffffff",
+    "iconColor": "",
+    "enableClick": true,
+    "enablePointerdown": false,
+    "pointerdownPayload": "",
+    "pointerdownPayloadType": "str",
+    "enablePointerup": false,
+    "pointerupPayload": "",
+    "pointerupPayloadType": "str",
+    "x": 200,
+    "y": 475,
+    "wires": [
+      [
+        "mqtt-out-cmd"
+      ]
+    ]
+  },
+  {
+    "id": "btn-sim-off",
+    "type": "ui-button",
+    "z": "tab-control",
+    "group": "grp-control",
+    "name": "Tắt giả lập",
+    "label": "Tắt giả lập",
+    "order": 5,
+    "width": "6",
+    "height": "1",
+    "emulateClick": false,
+    "tooltip": "",
+    "color": "#ffffff",
+    "bgcolor": "#546e7a",
+    "className": "",
+    "icon": "",
+    "iconPosition": "left",
+    "payload": "{\"sim\": \"off\"}",
+    "payloadType": "json",
+    "topic": "topic",
+    "topicType": "msg",
+    "buttonColor": "#546e7a",
+    "textColor": "#ffffff",
+    "iconColor": "",
+    "enableClick": true,
+    "enablePointerdown": false,
+    "pointerdownPayload": "",
+    "pointerdownPayloadType": "str",
+    "enablePointerup": false,
+    "pointerupPayload": "",
+    "pointerupPayloadType": "str",
+    "x": 200,
+    "y": 520,
+    "wires": [
+      [
+        "mqtt-out-cmd"
+      ]
+    ]
+  },
+  {
+    "id": "mqtt-out-cmd",
+    "type": "mqtt out",
+    "z": "tab-control",
+    "name": "airgas/Gas-Monitor-01/cmd",
+    "topic": "airgas/Gas-Monitor-01/cmd",
+    "qos": "1",
+    "retain": "false",
+    "respTopic": "",
+    "contentType": "",
+    "userProps": "",
+    "correl": "",
+    "expiry": "",
+    "broker": "airgas-broker",
+    "x": 520,
+    "y": 430,
+    "wires": []
+  },
+  {
+    "id": "link-in-ack",
+    "type": "link in",
+    "z": "tab-control",
+    "name": "phản hồi lệnh",
+    "links": [
+      "link-out-ack"
+    ],
+    "x": 95,
+    "y": 600,
+    "wires": [
+      [
+        "fn-ack-text"
+      ]
+    ]
+  },
+  {
+    "id": "fn-ack-text",
+    "type": "function",
+    "z": "tab-control",
+    "name": "Câu thông báo phản hồi",
+    "func": "const a = msg.payload || {};\nmsg.payload = (a.ok ? '✔ ' : '✖ ') + 'Thiết bị ' + (a.ok ? 'đã nhận' : 'từ chối') + ' lệnh ' + (a.cmd || '') +\n    (a.msg ? ': ' + a.msg : '');\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 280,
+    "y": 600,
+    "wires": [
+      [
+        "ui-notify"
+      ]
+    ]
+  },
+  {
+    "id": "link-in-notify",
+    "type": "link in",
+    "z": "tab-control",
+    "name": "cảnh báo",
+    "links": [
+      "link-out-notify"
+    ],
+    "x": 95,
+    "y": 660,
+    "wires": [
+      [
+        "ui-notify"
+      ]
+    ]
+  },
+  {
+    "id": "ui-notify",
+    "type": "ui-notification",
+    "z": "tab-control",
+    "ui": "ui-base-airgas",
+    "position": "top right",
+    "colorDefault": false,
+    "color": "#1f4e78",
+    "displayTime": "6",
+    "showCountdown": true,
+    "outputs": 1,
+    "allowDismiss": true,
+    "dismissText": "Đóng",
+    "allowConfirm": false,
+    "confirmText": "OK",
+    "raw": false,
+    "className": "",
+    "name": "Thông báo",
+    "x": 520,
+    "y": 630,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "cmt-ha",
+    "type": "comment",
+    "z": "tab-ha",
+    "name": "MQTT discovery → Home Assistant tự tạo thiết bị; log CSV mỗi 10 giây",
+    "info": "",
+    "x": 360,
+    "y": 40,
+    "wires": []
+  },
+  {
+    "id": "inject-ha",
+    "type": "inject",
+    "z": "tab-ha",
+    "name": "Khi khởi động",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": true,
+    "onceDelay": "3",
+    "topic": "",
+    "payload": "",
+    "payloadType": "date",
+    "x": 150,
+    "y": 120,
+    "wires": [
+      [
+        "fn-ha-discovery"
+      ]
+    ]
+  },
+  {
+    "id": "fn-ha-discovery",
+    "type": "function",
+    "z": "tab-ha",
+    "name": "Cấu hình HA discovery",
+    "func": "// Home Assistant MQTT discovery: một thiết bị, các cảm biến đọc từ airgas/<dev>/state\nconst DEV = 'Gas-Monitor-01';\nconst id = DEV.toLowerCase().replace(/[^a-z0-9]+/g, '_');\nconst state = `airgas/${DEV}/state`;\nconst device = { identifiers: [id], name: 'Trạm cảnh báo gas', manufacturer: 'Nhóm 12 – HUIT',\n                 model: 'ESP32 + MQ-2 + MQ-135' };\nconst avail = { availability_topic: `airgas/${DEV}/status`, payload_available: 'online', payload_not_available: 'offline' };\nconst out = [];\nfunction cfg(component, key, body) {\n    out.push({ topic: `homeassistant/${component}/${id}_${key}/config`, retain: true,\n               payload: Object.assign({ unique_id: `${id}_${key}`, object_id: `${id}_${key}`, device }, avail, body) });\n}\ncfg('sensor', 'gas', { name: 'Nồng độ gas', state_topic: state, unit_of_measurement: 'ppm', icon: 'mdi:gas-cylinder',\n    value_template: \"{{ value_json.gas.ppm if value_json.gas is defined and not value_json.gas.fault else none }}\" });\ncfg('sensor', 'co2', { name: 'CO2 tương đương', state_topic: state, unit_of_measurement: 'ppm', icon: 'mdi:molecule-co2',\n    value_template: \"{{ value_json.air.co2 if value_json.air is defined and not value_json.air.fault else none }}\" });\ncfg('sensor', 'level', { name: 'Mức cảnh báo', state_topic: state, icon: 'mdi:alert', value_template: '{{ value_json.level }}' });\ncfg('binary_sensor', 'gas_alarm', { name: 'Rò rỉ gas', device_class: 'gas', state_topic: state,\n    value_template: \"{{ 'ON' if value_json.level == 'NGUY_HIEM' else 'OFF' }}\" });\ncfg('sensor', 'valve', { name: 'Van gas', state_topic: state, icon: 'mdi:valve', value_template: '{{ value_json.valve }}' });\ncfg('sensor', 'fan', { name: 'Quạt hút', state_topic: state, unit_of_measurement: '%', icon: 'mdi:fan',\n    value_template: '{{ value_json.fan }}' });\ncfg('sensor', 'buzzer', { name: 'Còi báo động', state_topic: state, icon: 'mdi:bullhorn',\n    value_template: \"{{ {'fast': 'Bíp nhanh', 'slow': 'Bíp chậm', 'off': 'Im'}[value_json.buzzer] | default('?') }}\" });\ncfg('button', 'valve_open', { name: 'Xác nhận an toàn – Mở van', command_topic: `airgas/${DEV}/cmd`,\n    payload_press: '{\"valve\":\"open\"}', icon: 'mdi:valve-open' });\ncfg('button', 'valve_close', { name: 'Khoá van', command_topic: `airgas/${DEV}/cmd`,\n    payload_press: '{\"valve\":\"close\"}', icon: 'mdi:valve-closed' });\ncfg('button', 'fan_test', { name: 'Thử quạt 10 giây', command_topic: `airgas/${DEV}/cmd`,\n    payload_press: '{\"fan_test\":60,\"duration\":10}', icon: 'mdi:fan-alert' });\ncfg('button', 'recalibrate', { name: 'Hiệu chuẩn cảm biến', command_topic: `airgas/${DEV}/cmd`,\n    payload_press: '{\"recalibrate\":true}', icon: 'mdi:tune-vertical', entity_category: 'config' });\ncfg('sensor', 'fw', { name: 'Phiên bản firmware', state_topic: state, icon: 'mdi:chip', entity_category: 'diagnostic',\n    value_template: '{{ value_json.fw | default(none) }}' });\ncfg('sensor', 'rssi', { name: 'Sóng Wi-Fi', state_topic: state, unit_of_measurement: 'dBm', device_class: 'signal_strength',\n    entity_category: 'diagnostic', value_template: '{{ value_json.rssi | default(none) }}' });\nnode.status({ fill: 'green', shape: 'dot', text: out.length + ' cấu hình đã gửi' });\nreturn [out];\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 380,
+    "y": 120,
+    "wires": [
+      [
+        "mqtt-out-ha"
+      ]
+    ]
+  },
+  {
+    "id": "mqtt-out-ha",
+    "type": "mqtt out",
+    "z": "tab-ha",
+    "name": "homeassistant/... (retain)",
+    "topic": "",
+    "qos": "1",
+    "retain": "",
+    "respTopic": "",
+    "contentType": "",
+    "userProps": "",
+    "correl": "",
+    "expiry": "",
+    "broker": "airgas-broker",
+    "x": 640,
+    "y": 120,
+    "wires": []
+  },
+  {
+    "id": "link-in-log",
+    "type": "link in",
+    "z": "tab-ha",
+    "name": "trạng thái",
+    "links": [
+      "link-out-log"
+    ],
+    "x": 95,
+    "y": 220,
+    "wires": [
+      [
+        "fn-log-row"
+      ]
+    ]
+  },
+  {
+    "id": "fn-log-row",
+    "type": "function",
+    "z": "tab-ha",
+    "name": "Dòng CSV mỗi 10 s",
+    "func": "// mỗi thiết bị 1 dòng / 10 giây vào /data/logs/airgas.csv\nconst s = msg.payload;\nconst last = context.get(s.device) || 0;\nif (Date.now() - last < 10000) return null;\ncontext.set(s.device, Date.now());\nconst out = [];\nif (!context.get('header')) {\n    context.set('header', true);\n    out.push({ payload: 'time,device,level,gas_ppm,gas_mv,co2_ppm,co2_mv,valve,fan,online,sim', filename: '/data/logs/airgas.csv' });\n}\nconst g = s.gas || {}, a = s.air || {};\nout.push({ payload: [s.updated, s.device, s.level, g.ppm ?? '', g.mv ?? '', a.co2 ?? '', a.mv ?? '', s.valve, s.fan,\n                     s.online, !!(g.sim || a.sim)].join(','), filename: '/data/logs/airgas.csv' });\nreturn [out];\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 280,
+    "y": 220,
+    "wires": [
+      [
+        "file-log"
+      ]
+    ]
+  },
+  {
+    "id": "file-log",
+    "type": "file",
+    "z": "tab-ha",
+    "name": "/data/logs/airgas.csv",
+    "filename": "filename",
+    "filenameType": "msg",
+    "appendNewline": true,
+    "createDir": true,
+    "overwriteFile": "false",
+    "encoding": "utf8",
+    "x": 520,
+    "y": 220,
+    "wires": [
+      []
+    ]
+  }
 ]

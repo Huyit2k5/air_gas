@@ -118,6 +118,18 @@ body { margin: 0; }
 .log .out { color: var(--accent); }
 .log li span:last-child { overflow-wrap: anywhere; }
 .discord-form { max-width: 640px; }
+.act { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
+.act svg { flex: 0 0 auto; color: var(--fg); }
+.valve-ic .pipe { fill: var(--line); }
+.valve-ic .body { fill: var(--muted); }
+.valve-ic .handle { fill: var(--ok); transform-box: fill-box; transform-origin: center; transition: transform .45s ease, fill .3s; }
+.valve-ic.closed .handle { transform: rotate(90deg); fill: var(--accent); }
+.fan-ic .blades { fill: currentColor; transform-box: view-box; transform-origin: 20px 20px; animation: spin 1s linear infinite paused; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .fan-ic .blades { animation: none; } .valve-ic .handle { transition: none; } }
+.meter { height: 6px; border-radius: 3px; background: var(--bg); margin-top: 8px; overflow: hidden; }
+.meter i { display: block; height: 100%; width: 0; background: var(--ok); transition: width .4s; }
+.meter i.full { background: var(--accent); }
 </style>
 </head>
 <body>
@@ -125,7 +137,7 @@ body { margin: 0; }
 <main class="wrap">
   <header>
     <h1>Air Gas Monitor Live</h1>
-    <p>Bảng điều khiển cho thiết bị thật: kết nối broker MQTT qua WebSocket để xem số liệu trực tiếp từ ESP32 trên mô hình 3D, gửi lệnh giả lập rò gas hoặc không khí kém xuống thiết bị (còi, LED, MQTT và Discord chạy như sự cố thật), và đổi cấu hình thiết bị. Chế độ "Mô phỏng trong trang" chạy không cần thiết bị.</p>
+    <p>Bảng điều khiển cho thiết bị thật: kết nối broker MQTT qua WebSocket để xem số liệu trực tiếp từ ESP32 trên mô hình 3D, gửi lệnh giả lập rò gas hoặc không khí kém xuống thiết bị (còi, LED, van, quạt, MQTT và Discord chạy như sự cố thật), đóng mở van gas, và đổi cấu hình thiết bị. Chế độ "Mô phỏng trong trang" chạy không cần thiết bị.</p>
   </header>
 
   <section class="controls" aria-label="Điều khiển mô hình">
@@ -157,6 +169,9 @@ body { margin: 0; }
         <button type="button" data-v="mq135" aria-pressed="false">MQ-135</button>
         <button type="button" data-v="buzzer" aria-pressed="false">Còi</button>
         <button type="button" data-v="bread" aria-pressed="false">Breadboard</button>
+        <button type="button" data-v="fan" aria-pressed="false">Quạt</button>
+        <button type="button" data-v="valve" aria-pressed="false">Van</button>
+        <button type="button" data-v="power" aria-pressed="false">Nguồn</button>
         <button type="button" data-v="tank" aria-pressed="false">Bình gas</button>
         <button type="button" data-v="candle" aria-pressed="false">Nến</button>
       </div>
@@ -196,6 +211,7 @@ body { margin: 0; }
           <option value="300">5 phút</option>
         </select>
         <label class="check"><input id="simDiscord" type="checkbox" checked> Gửi tin Discord khi giả lập</label>
+        <label class="check"><input id="simAct" type="checkbox" checked> Cho van và quạt chạy theo giả lập</label>
       </div>
       <p class="note" id="cmdNote">Chưa gửi lệnh nào.</p>
     </div>
@@ -214,7 +230,7 @@ body { margin: 0; }
           <button type="button" class="btn" id="btnRecal">Hiệu chuẩn lại cảm biến</button>
         </div>
       </div>
-      <p class="note">Các lệnh ở đây cần firmware mới (chưa nạp), firmware hiện tại sẽ bỏ qua. Mỗi nút phải bấm hai lần để xác nhận. Mật khẩu Wi-Fi đi qua MQTT không mã hóa, chỉ dùng trong mạng nhà.</p>
+      <p class="note">Mỗi nút phải bấm hai lần để xác nhận. Mật khẩu Wi-Fi đi qua MQTT không mã hóa, chỉ dùng trong mạng nhà.</p>
     </div>
   </section>
 
@@ -226,14 +242,16 @@ body { margin: 0; }
       <div class="hint">kéo: xoay · cuộn: phóng to · chuột phải: dời</div>
     </div>
     <div class="legend" aria-label="Chú giải màu dây">
-      <span><i style="background:#d93a2f"></i>5V từ VIN → thanh +</span>
-      <span><i style="background:#2a2f33;outline:1px solid #7a858d"></i>GND → thanh −</span>
-      <span><i style="background:#e2b100"></i>AO MQ-2 → D35</span>
-      <span><i style="background:#ee7a00"></i>AO MQ-135 → D34</span>
+      <span><i style="background:#d93a2f"></i>5V từ adapter → thanh +</span>
+      <span><i style="background:#2a2f33;outline:1px solid #7a858d"></i>GND (ESP32 và adapter chung) → thanh −</span>
+      <span><i style="background:#e2b100"></i>AO MQ-2 → chia áp → D35</span>
+      <span><i style="background:#ee7a00"></i>AO MQ-135 → chia áp → D34</span>
       <span><i style="background:#2f6fd6"></i>D4 → chân + của còi</span>
-      <span><i style="background:#7b4b2a"></i>chân − của còi → thanh − (khi cắm đúng)</span>
+      <span><i style="background:#7b4b2a"></i>chân − của còi, dây nâu servo → thanh −</span>
+      <span><i style="background:#2b9a4b"></i>D18 → TRIG/PWM module MOSFET (quạt)</span>
+      <span><i style="background:#8a4fd6"></i>D13 → dây tín hiệu servo van</span>
     </div>
-    <figcaption>Dựng theo tỉ lệ thật: breadboard 400 điểm (82 × 55 mm), ESP32 DevKit V1 (51,8 × 28,2 mm), module MQ 32 × 22 mm đứng trên chân cắm, còi ø12 mm. Ở chế độ "Mô phỏng trong trang" số liệu tính theo công thức trong firmware. Ở chế độ "Thiết bị thật" số liệu, LED và còi trên mô hình lấy từ gói MQTT của thiết bị; nhịp còi trên mô hình là suy ra từ cờ báo động. Bình gas và cây nến là vật minh họa nguồn khí, thu nhỏ để vừa khung hình, không theo tỉ lệ thật.</figcaption>
+    <figcaption>Dựng theo tỉ lệ thật: breadboard 400 điểm (82 × 55 mm), ESP32 DevKit V1 (51,8 × 28,2 mm), module MQ 32 × 22 mm đứng trên chân cắm, còi ø12 mm. Ở chế độ "Mô phỏng trong trang" số liệu tính theo công thức trong firmware. Ở chế độ "Thiết bị thật" số liệu, LED và còi trên mô hình lấy từ gói MQTT của thiết bị; nhịp còi trên mô hình là suy ra từ cờ báo động. Bình gas và cây nến là vật minh họa nguồn khí, thu nhỏ để vừa khung hình, không theo tỉ lệ thật. Quạt 40 mm, module MOSFET JZ-MOS, servo MG90S, adapter và jack DC đặt cạnh breadboard. Quạt quay và càng servo xoay theo trạng thái thật (hoặc mô phỏng). Van bi trên ống gas là phần minh họa.</figcaption>
   </figure>
 
   <section class="cards" aria-label="Số liệu mô phỏng">
@@ -256,6 +274,48 @@ body { margin: 0; }
       <div class="big" id="vBuz" style="font-size:22px">Im</div>
       <div class="sub" id="subBuz">LED GPIO2 tắt</div>
       <span class="chip" id="chipBuz">Chờ</span>
+    </div>
+    <div class="card">
+      <h3>Van gas · servo MG90S ở D13</h3>
+      <div class="act">
+        <svg class="valve-ic" id="valveIc" width="64" height="40" viewBox="0 0 64 40" aria-hidden="true">
+          <rect class="pipe" x="2" y="16" width="60" height="8" rx="2"/>
+          <circle class="body" cx="32" cy="20" r="8"/>
+          <rect class="handle" x="14" y="17.5" width="36" height="5" rx="2.5"/>
+        </svg>
+        <div class="big" id="vValve" style="font-size:22px">Mở</div>
+      </div>
+      <div class="sub" id="subValve">Tự đóng khi báo động gas, chỉ mở lại bằng lệnh</div>
+      <span class="chip" id="chipValve">Đang mở</span>
+      <div class="row">
+        <button type="button" class="btn" id="btnValveOpen">Mở van</button>
+        <button type="button" class="btn" id="btnValveClose">Đóng van</button>
+      </div>
+      <div class="sub" id="valveNote"></div>
+    </div>
+    <div class="card">
+      <h3>Quạt hút · module MOSFET ở D18</h3>
+      <div class="act">
+        <svg class="fan-ic" width="40" height="40" viewBox="0 0 40 40" aria-hidden="true">
+          <g class="blades" id="fanBlades">
+            <ellipse cx="20" cy="10" rx="4.5" ry="8.5"/>
+            <ellipse cx="20" cy="10" rx="4.5" ry="8.5" transform="rotate(120 20 20)"/>
+            <ellipse cx="20" cy="10" rx="4.5" ry="8.5" transform="rotate(240 20 20)"/>
+          </g>
+          <circle cx="20" cy="20" r="3.5" fill="var(--panel)" stroke="currentColor" stroke-width="1.5"/>
+        </svg>
+        <div class="big"><span id="vFan">0</span> <small>%</small></div>
+      </div>
+      <div class="meter"><i id="fanBar"></i></div>
+      <div class="sub" id="subFan">100% khi báo động gas, chạy thêm 60 giây sau khi hết. 60% khi không khí kém</div>
+      <span class="chip" id="chipFan">Tắt</span>
+      <div class="row" id="fanTest">
+        <button type="button" class="btn" data-pct="30">Thử 30%</button>
+        <button type="button" class="btn" data-pct="60">60%</button>
+        <button type="button" class="btn" data-pct="100">100%</button>
+        <button type="button" class="btn" data-pct="0">Dừng</button>
+      </div>
+      <div class="sub" id="fanNote">Thử quạt riêng trong 10 giây, không bật còi và không gửi Discord. Báo động gas vẫn được ưu tiên.</div>
     </div>
     <div class="card">
       <h3>Gói MQTT gần nhất (mỗi giây)</h3>
@@ -352,13 +412,13 @@ body { margin: 0; }
   const pinZ = i => ESP.z - 17.78 + 2.54 * i;
   const LEFT = ['EN', 'VP', 'VN', 'D34', 'D35', 'D32', 'D33', 'D25', 'D26', 'D27', 'D14', 'D12', 'D13', 'GND', 'VIN'];
   const RIGHT = ['D23', 'D22', 'TX0', 'RX0', 'D21', 'D19', 'D18', 'D5', 'TX2', 'RX2', 'D4', 'D2', 'D15', 'GND', '3V3'];
-  const PINS = { g36: ['L', 1], g39: ['L', 2], g34: ['L', 3], g35: ['L', 4], gnd: ['L', 13], vin: ['L', 14], g4: ['R', 10] };
+  const PINS = { g36: ['L', 1], g39: ['L', 2], g34: ['L', 3], g35: ['L', 4], g13: ['L', 12], gnd: ['L', 13], vin: ['L', 14], g18: ['R', 6], g4: ['R', 10] };
   const pinPos = k => ({ x: HXs[PINS[k][0]], z: pinZ(PINS[k][1]) });
 
   /* ======================= thông tin linh kiện ======================= */
   const INFO = {
     esp32: ['ESP32 DevKit V1 (DOIT, 30 chân)', [
-      ['Đang cắm', 'AO của MQ-2 vào D35, AO của MQ-135 vào D34, chân + của còi vào D4, VIN và GND sang hai thanh nguồn của breadboard'],
+      ['Đang cắm', 'AO của MQ-2 vào D35 và AO của MQ-135 vào D34 (đều qua chia áp 10k/10k), chân + của còi vào D4, module MOSFET của quạt vào D18, dây tín hiệu servo van vào D13, GND sang thanh −. ESP32 chạy bằng cáp USB, không cấp 5V cho breadboard'],
       ['Firmware (bản mới)', 'MQ-2 ở GPIO35 (ADC1 channel 7), MQ-135 ở GPIO34 (ADC1 channel 6), còi ở GPIO4, khớp cách cắm. Bản cũ đọc GPIO36 và GPIO39 là hai chân để trống'],
       ['Bản nạp mới', 'đã tắt chế độ self-test còi. Bộ nhớ hiệu chuẩn bị xóa nên lần khởi động đầu tự hiệu chuẩn lại trong khoảng 5 giây mỗi cảm biến, cần không khí sạch và cảm biến đã nóng'],
       ['Kích thước', '51,8 × 28,2 mm, hai hàng chân cách nhau khoảng 22,9 mm, bước chân 2,54 mm'],
@@ -367,21 +427,21 @@ body { margin: 0; }
       ['Mức tối đa', 'chân GPIO chỉ chịu 3,3V, không nối trực tiếp 5V'],
     ]],
     mq2: ['MQ-2 · khí gas và khói', [
-      ['Đang cắm', 'AO vào D35 (GPIO35, ADC1 channel 7), đúng chân firmware bản mới đọc'],
+      ['Đang cắm', 'AO qua mạch chia áp 10k/10k vào D35 (GPIO35, ADC1 channel 7)'],
       ['Module', '32 × 22 mm. Mặt trước: lưới cảm biến, biến trở chỉnh ngưỡng, LED nguồn (PWR) và LED DO. Mặt sau: chip so sánh LM393. Header 4 chân VCC, GND, DO, AO ở cạnh dưới'],
       ['Cách cắm', 'chân header cắm thẳng xuống hàng e của breadboard. Dây cắm vào lỗ cùng cột ngay phía sau cảm biến (hàng a–d): VCC và GND xuống thanh nguồn sau, AO sang D35 của ESP32, DO bỏ trống'],
       ['Dây nung', 'điện trở 33 Ω ± 5%, cấp 5V, dưới 800 mW (khoảng 150 mA). Phần lưới kim loại ấm lên sau vài phút'],
       ['Làm nóng', 'datasheet yêu cầu hơn 24 giờ ở lần dùng đầu tiên cho số liệu ổn định'],
       ['LED DO', 'sáng khi AO vượt mức đặt bằng biến trở. Firmware không dùng chân DO, chỉ đọc AO'],
-      ['Lưu ý nối', 'AO có thể lên tới 5V mà chân ADC chỉ chịu 3,3V. Nối thẳng AO vào GPIO không có mạch chia áp là rủi ro cho chân ADC'],
+      ['Chia áp', 'AO lên tới khoảng 4–5V mà chân ADC chỉ chịu 3,3V. Điện trở 10k từ AO tới điểm giữa, 10k từ điểm giữa xuống thanh −, dây về ESP32 lấy ở điểm giữa nên chỉ còn một nửa. Firmware nhân đôi lại (GAS_ADC_DIVIDER_PERCENT = 50)'],
     ]],
     mq135: ['MQ-135 · chất lượng không khí', [
-      ['Đang cắm', 'AO vào D34 (GPIO34, ADC1 channel 6), đúng chân firmware bản mới đọc'],
+      ['Đang cắm', 'AO qua mạch chia áp 10k/10k vào D34 (GPIO34, ADC1 channel 6)'],
       ['Module', '32 × 22 mm, cùng bố cục với MQ-2: lưới cảm biến, biến trở và hai LED ở mặt trước; LM393 ở mặt sau; header ở cạnh dưới'],
       ['Cách cắm', 'giống MQ-2: chân cắm xuống hàng e, dây cắm vào lỗ cùng cột phía sau cảm biến. AO sang D34 của ESP32'],
       ['Nguồn', '5V, khoảng 150 mA cho dây nung'],
       ['Firmware', 'ước tính CO₂ tương đương, mức nền 400 ppm, báo "không khí kém" từ 1500 ppm'],
-      ['Lưu ý nối', 'cũng cần giữ AO dưới 3,3V trước khi vào chân ADC'],
+      ['Chia áp', 'giống MQ-2: hai điện trở 10k, firmware nhân đôi lại (AQ_ADC_DIVIDER_PERCENT = 50)'],
       ['Vị trí', 'hai module rộng 22 mm (khoảng 9 lỗ) nên cần cắm cách nhau ít nhất 9 cột'],
     ]],
     buzzer: ['Còi active buzzer', [
@@ -408,7 +468,26 @@ body { margin: 0; }
     bread: ['Breadboard 400 điểm', [
       ['Kích thước', 'khoảng 82 × 55 mm, 30 cột, hai ray nguồn ở mỗi cạnh'],
       ['Nối thông', 'mỗi nhóm 5 lỗ a–e (và nhóm 5 lỗ f–j) thông với nhau. Rãnh giữa ngắt mạch. Mỗi ray nguồn thông suốt chiều dài'],
-      ['Trong mô hình', 'thanh nguồn trước nhận 5V và GND từ ESP32. Hai cảm biến lấy nguồn ở thanh nguồn sau, nên có hai dây ở mép trái nối thanh + sau với thanh + trước và thanh − sau với thanh − trước. Thiếu hai dây này thì cảm biến không có điện'],
+      ['Trong mô hình', 'adapter 5V 2A cấp vào thanh nguồn trước qua jack DC. Hai dây ở mép trái nối thanh + sau với thanh + trước và thanh − sau với thanh − trước, để cảm biến, quạt và servo ở phía sau cùng có điện. ESP32 chỉ nối GND chung vào thanh −'],
+    ]],
+    power: ['Nguồn riêng: adapter 5V 2A', [
+      ['Vì sao', 'hai dây nung MQ ăn khoảng 300 mA. Lấy từ VIN của ESP32 làm sụt áp lúc Wi-Fi khởi động nên board bị reset (brownout)'],
+      ['Cách nối', 'adapter cắm vào jack DC cái có cọc vít. Cọc + vào thanh +, cọc − vào thanh − của breadboard. ESP32 vẫn chạy bằng cáp USB, chân VIN không nối vào thanh +'],
+      ['GND chung', 'GND của ESP32 phải nối vào thanh −. Thiếu dây này thì số đọc AO sai hoặc nhảy lung tung'],
+      ['Thứ tự bật', 'cắm USB cho ESP32 trước, rồi mới cắm adapter'],
+      ['Tải', 'cảm biến khoảng 300 mA, quạt 100–200 mA, servo vài trăm mA lúc quay. Adapter 2A còn dư'],
+    ]],
+    fan: ['Quạt hút và module MOSFET JZ-MOS', [
+      ['Đang cắm', 'TRIG/PWM của module vào D18, GND của module vào thanh −. VIN+ và VIN− vào thanh nguồn, quạt vào VOUT+ (dây đỏ) và VOUT− (dây đen)'],
+      ['Module', 'JZ-MOS có 2 MOSFET D4184 chạy song song, cọc vít VIN và VOUT, LED sáng khi có tín hiệu điều khiển. Mỗi tín hiệu có 2 lỗ thông nhau, cắm 1 lỗ là đủ'],
+      ['Firmware', 'PWM 500 Hz ở GPIO18. Báo động gas: 100% và chạy thêm 60 giây sau khi hết báo động. Không khí kém: 60%. Mỗi lần bắt đầu quay được đẩy 100% trong 0,5 giây cho chắc khởi động'],
+      ['Nguồn', 'quạt lấy điện từ adapter qua module, không lấy từ ESP32'],
+    ]],
+    valve: ['Van gas và servo MG90S', [
+      ['Đang cắm', 'dây cam (tín hiệu) vào D13, dây đỏ vào thanh +, dây nâu vào thanh −'],
+      ['Firmware', 'xung 50 Hz ở GPIO13: mở 0°, đóng 90°. Quay xong khoảng 0,7 giây thì ngắt xung cho servo khỏi rè. Trạng thái van lưu trong NVS nên giữ nguyên khi mất điện'],
+      ['Tự động', 'báo động gas thì van tự đóng và giữ đóng. Chỉ lệnh "mở van" mới mở lại, và lệnh này bị từ chối khi đang báo động'],
+      ['Minh họa', 'van bi trên ống từ bình gas xoay theo càng servo. Mô hình thật hiện chỉ có servo và càng, chưa gắn vào van thật'],
     ]],
   };
   function showInfo(k) {
@@ -433,8 +512,10 @@ body { margin: 0; }
       ['MQ-135 · chân AO', 'D34 (GPIO34)', now ? 'GPIO39 (VN)' : 'GPIO34 (D34)', !now],
       ['Còi · chân +', 'D4 (GPIO4)', 'GPIO4', true],
       ['Còi · chân −', ok ? 'GND (qua thanh −)' : 'chưa nối GND', 'GND', ok],
-      ['Cấp nguồn 5V', 'VIN', 'VIN', true],
-      ['Nối đất', 'GND', 'GND', true],
+      ['Quạt · TRIG/PWM module MOSFET', 'D18 (GPIO18)', 'GPIO18 · PWM 500 Hz', true],
+      ['Van · dây cam servo', 'D13 (GPIO13)', 'GPIO13 · xung 50 Hz', true],
+      ['Nguồn 5V cảm biến, quạt, servo', 'adapter 5V 2A riêng', 'không lấy từ VIN', true],
+      ['Nối đất', 'GND ESP32 ↔ thanh − adapter', 'GND chung', true],
     ];
     const body = $('mapBody'); body.textContent = '';
     rows.forEach(r => {
@@ -461,14 +542,44 @@ body { margin: 0; }
     if (state.source === 'live') {
       const mode = { normal: 'off', gas: 'gas', air: 'air' }[state.scenario];
       const label = { off: 'tắt giả lập', gas: 'giả lập rò gas', air: 'giả lập không khí kém' }[mode];
-      sendCmd({ sim: mode, duration: +$('simDur').value, discord: $('simDiscord').checked }, 'Đã gửi lệnh ' + label);
+      sendCmd({ sim: mode, duration: +$('simDur').value, discord: $('simDiscord').checked, actuators: $('simAct').checked }, 'Đã gửi lệnh ' + label);
     }
   });
   $('segView').addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
     selectView(b.dataset.v);
   });
-  $('btnPower').addEventListener('click', () => { pw0 = performance.now(); sim.g = target[state.scenario].g; sim.a = target[state.scenario].a; });
+  /* van và quạt ở chế độ mô phỏng, theo gas_main.c: báo động gas đóng van (giữ đóng đến khi có lệnh mở)
+     và chạy quạt 100% thêm GAS_FAN_RUNON_S giây; không khí kém chạy quạt GAS_FAN_POOR_PERCENT */
+  const FAN_POOR = 60, FAN_RUNON_S = 60;
+  const act = { valveClosed: false, fan: 0, runonUntil: 0, alarm: false, testPct: 0, testUntil: 0 };
+  /* thử quạt riêng: lệnh {"fan_test":pct,"duration":10} (firmware 1.4.0+), 0 là dừng */
+  const FAN_TEST_S = 10;
+  $('fanTest').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    const pct = +b.dataset.pct;
+    if (state.source === 'live') {
+      sendCmd({ fan_test: pct, duration: FAN_TEST_S }, pct ? `Đã gửi lệnh thử quạt ${pct}%` : 'Đã gửi lệnh dừng thử quạt');
+      $('fanNote').textContent = 'Đã gửi lệnh, chờ thiết bị trả lời…';
+      return;
+    }
+    act.testPct = pct; act.testUntil = pct ? performance.now() + FAN_TEST_S * 1000 : 0;
+    $('fanNote').textContent = pct ? `Đang thử quạt ${pct}% trong ${FAN_TEST_S} giây (mô phỏng).` : 'Đã dừng thử quạt (mô phỏng).';
+  });
+  /* cấp nguồn lại: quạt về 0, van giữ trạng thái vì firmware lưu nó trong NVS */
+  $('btnPower').addEventListener('click', () => { pw0 = performance.now(); sim.g = target[state.scenario].g; sim.a = target[state.scenario].a; act.runonUntil = 0; act.fan = 0; });
+  function valveCmd(open) {
+    if (state.source === 'live') {
+      sendCmd({ valve: open ? 'open' : 'close' }, open ? 'Đã gửi lệnh mở van' : 'Đã gửi lệnh đóng van');
+      $('valveNote').textContent = 'Đã gửi lệnh, chờ thiết bị trả lời…';
+      return;
+    }
+    if (open && act.alarm) { $('valveNote').textContent = 'Đang báo động gas nên van giữ đóng (giống firmware).'; return; }
+    act.valveClosed = !open;
+    $('valveNote').textContent = open ? 'Đã mở van (mô phỏng).' : 'Đã đóng van (mô phỏng).';
+  }
+  $('btnValveOpen').addEventListener('click', () => valveCmd(true));
+  $('btnValveClose').addEventListener('click', () => valveCmd(false));
   function selectView(v) {
     state.view = v; setPressed($('segView'), v);
     if (v !== 'overview') showInfo(v);
@@ -483,12 +594,13 @@ body { margin: 0; }
   }
 
   /* ======================= thiết bị thật qua MQTT (WebSocket) ======================= */
-  /* Hợp đồng lệnh cho firmware (sẽ thêm ở bản nạp tới):
-     airgas/<dev>/cmd   {"sim":"gas"|"air"|"off","duration":60,"discord":true}
-                        {"wifi":{"ssid":"...","pass":"..."}} · {"broker":"mqtt://ip:1883"} · {"recalibrate":true}
+  /* Hợp đồng lệnh với firmware:
+     airgas/<dev>/cmd   {"sim":"gas"|"air"|"off","duration":60,"discord":true,"actuators":true}
+                        {"valve":"open"|"close"} · {"fan_test":0..100,"duration":10} · {"recalibrate":true}
+                        {"wifi":{"ssid":"...","pass":"..."}} · {"broker":"mqtt://ip:1883"}
                         {"discord_webhook":"https://discord.com/api/webhooks/..."}
-     airgas/<dev>/ack   {"cmd":"sim","ok":true,"msg":"..."}
-     airgas/<dev>/info  (retained) {"fw":"1.1.0","ip":"...","rssi":-60,"sim":"off"} */
+     airgas/<dev>/ack   {"cmd":"valve","ok":true,"msg":"opened"}
+     airgas/<dev>/info  (retained) {"fw":"1.3.0","ip":"...","rssi":-60,"sim":"off","valve":"open"|"closed","fan":0..100} */
   state.source = 'sim';
   const live = { client: null, connected: false, dev: 'Gas-Monitor-01', g: null, a: null, status: '', lastMsg: 0, info: null };
   const LS = {
@@ -558,6 +670,15 @@ body { margin: 0; }
       live.info = j;
     } else if (kind === 'ack' && j) {
       $('cmdNote').textContent = (j.ok ? 'Thiết bị đã nhận lệnh ' : 'Thiết bị từ chối lệnh ') + (j.cmd || '') + (j.msg ? ': ' + j.msg : '');
+      if (j.cmd === 'fan_test') {
+        $('fanNote').textContent = j.ok ? 'Thiết bị đang thử quạt: ' + (j.msg || '') : 'Thiết bị từ chối: ' + (j.msg || '');
+      } else if (j.cmd === 'unknown' || (j.cmd === '?' && /unknown/.test(j.msg || ''))) {
+        $('fanNote').textContent = 'Thiết bị chưa hiểu lệnh thử quạt. Cần nạp firmware 1.4.0.';
+      }
+      if (j.cmd === 'valve') {
+        $('valveNote').textContent = j.ok ? (j.msg === 'opened' ? 'Thiết bị đã mở van.' : 'Thiết bị đã đóng van.')
+          : 'Thiết bị từ chối: đang báo động gas nên van giữ đóng.';
+      }
     }
     updateLiveUi();
   }
@@ -669,7 +790,10 @@ body { margin: 0; }
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(38, 1.6, 1, 2000);
     const VIEWS = {
-      overview: { p: [-12, 128, 168], t: [-12, 16, 4] },
+      overview: { p: [-18, 150, 196], t: [-14, 10, -8] },
+      fan: { p: [6, 84, 40], t: [-4, 14, -56] },
+      valve: { p: [-44, 66, 34], t: [-72, 10, -22] },
+      power: { p: [-56, 78, 96], t: [-80, 8, 20] },
       tank: { p: [-60, 96, 150], t: [-58, 42, 0] },
       candle: { p: [12, 62, 132], t: [10, 24, 30] },
       esp32: { p: [84, 62, 78], t: [80, 3, 8] },
@@ -848,7 +972,7 @@ body { margin: 0; }
     }
 
     /* ---------- dây ---------- */
-    const COL = { red: 0xd93a2f, black: 0x30363b, yellow: 0xe2b100, orange: 0xee7a00, blue: 0x2f6fd6, brown: 0x7b4b2a };
+    const COL = { red: 0xd93a2f, black: 0x30363b, yellow: 0xe2b100, orange: 0xee7a00, blue: 0x2f6fd6, brown: 0x7b4b2a, green: 0x2b9a4b, purple: 0x8a4fd6 };
     const wireGroup = new THREE.Group(); scene.add(wireGroup);
     const housing = mat(0x15181a, 0.5);
     function wire(points, color, radius = 0.62) {
@@ -909,17 +1033,18 @@ body { margin: 0; }
       const pts = [[x0, BB_TOP + 5, z0], [x0, 26, z0 - 2], [(x0 + p.x) / 2, apex, (z0 + p.z) / 2 - 6], [p.x - (right ? 12 : 9), apex - 10, p.z], [p.x - (right ? 0 : 0.2), PIN_TOP + 8, p.z], [p.x, PIN_TOP, p.z]];
       const w = wire(pts, color); bbPlug(x0, z0, color); espPlug(k, color); return w;
     }
-    const wSig2 = toEsp(colX(11), ROWZ.a, 'g35', COL.yellow, 54);
-    const wSig135 = toEsp(colX(20), ROWZ.a, 'g34', COL.orange, 47);
+    /* dây AO lấy ở điểm giữa của mạch chia áp (cột 14 và 23), không lấy thẳng ở cột AO */
+    const wSig2 = toEsp(colX(14), ROWZ.b, 'g35', COL.yellow, 54);
+    const wSig135 = toEsp(colX(23), ROWZ.b, 'g34', COL.orange, 47);
     const wBuz = toEsp(colX(25), ROWZ.j, 'g4', COL.blue, 56);
     function toRail(k, zr, color, midY) {
       const p = pinPos(k), xr = railSnap(36);
       const pts = [[p.x, PIN_TOP, p.z], [p.x, 26, p.z - 1], [(p.x + xr) / 2 + 6, midY, (p.z + zr) / 2], [xr + 8, 20, zr + 1.5], [xr, BB_TOP + 5, zr]];
       const w = wire(pts, color); bbPlug(xr, zr, color); espPlug(k, color); return w;
     }
-    const wVin = toRail('vin', RAIL_PLUS_Z, COL.red, 30);
+    /* ESP32 chạy bằng USB: chỉ nối GND chung, VIN không cắm vào thanh + (thanh + lấy 5V từ adapter) */
     const wGnd = toRail('gnd', RAIL_MINUS_Z, COL.black, 25);
-    addFlow(wVin.curve, 9, 1, 'power'); addFlow(wGnd.curve, 8, -1, 'power');
+    addFlow(wGnd.curve, 8, -1, 'power');
     addFlow(wSig2.curve, 8, 1, 'sig', { src: 'g' }); addFlow(wSig135.curve, 8, 1, 'sig', { src: 'a' });
     addFlow(wBuz.curve, 7, -1, 'buz');
 
@@ -941,7 +1066,7 @@ body { margin: 0; }
       x.stroke(); x.globalAlpha = 1;
       x.fillStyle = '#8795a0'; x.font = '600 17px monospace'; x.textAlign = 'center';
       x.fillText('DOIT ESP32 DEVKIT V1', px(0), pz(ESP.l / 2 - 14.5));
-      const used = ['g35', 'g34', 'g4', 'gnd', 'vin'].map(k => PINS[k][0] + PINS[k][1]);
+      const used = ['g35', 'g34', 'g4', 'gnd', 'g18', 'g13'].map(k => PINS[k][0] + PINS[k][1]);
       const ghost = state.fw === 'now' ? ['L1', 'L2'] : [];
       ['L', 'R'].forEach(side => (side === 'L' ? LEFT : RIGHT).forEach((t, i) => {
         const id = side + i, on = used.includes(id), gh = ghost.includes(id);
@@ -1082,6 +1207,184 @@ body { margin: 0; }
       return S.level;
     }
 
+    const shade = g => g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    const label3d = (w, h, draw) => new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex(cvs(w * 20, h * 20, draw)), transparent: true }));
+    /* chân dây đực cắm xuyên lỗ trên mạch (module MOSFET): vỏ nhựa đứng trên mặt mạch */
+    function pcbPlug(x, y, z, color) {
+      const o = box(2.5, 5, 2.5, housing); o.position.set(x, y + 2.5, z);
+      const band = box(2.56, 1.2, 2.56, mat(color, 0.5)); band.position.set(x, y + 4.2, z);
+      wireGroup.add(o, band);
+    }
+
+    /* ---------- nguồn riêng: adapter 5V 2A, jack DC cái có cọc vít, hai dây vào thanh nguồn trước ---------- */
+    const power = group('power', scene);
+    const adp = box(40, 26, 30, mat(0x1b1f22, 0.55)); adp.position.set(-110, 13, 22); power.add(adp);
+    const adpLab = label3d(40, 30, x => {
+      x.fillStyle = '#c9d0d5'; x.textAlign = 'center';
+      x.font = '700 120px sans-serif'; x.fillText('5V 2A', 400, 330);
+      x.font = '500 64px sans-serif'; x.fillText('ADAPTER', 400, 440);
+    });
+    adpLab.rotation.x = -Math.PI / 2; adpLab.position.set(-110, 26.05, 22); power.add(adpLab);
+    const adpCable = new THREE.CatmullRomCurve3([[-90, 5, 22], [-80, 3, 27], [-71, 3, 23], [-64, 5, 22]].map(p => new THREE.Vector3(...p)));
+    power.add(new THREE.Mesh(new THREE.TubeGeometry(adpCable, 40, 1.5, 10, false), mat(0x1c1f22, 0.6)));
+    const jack = new THREE.Mesh(new THREE.CylinderGeometry(4.5, 4.5, 14, 24), mat(0x1c2024, 0.45));
+    jack.rotation.z = Math.PI / 2; jack.position.set(-57, 5, 22); power.add(jack);
+    const jTerm = box(8, 10, 11, mat(0x2f8f4a, 0.5)); jTerm.position.set(-46, 5, 22); power.add(jTerm);
+    [19.5, 24.5].forEach(z => { const s = new THREE.Mesh(new THREE.CylinderGeometry(1.7, 1.7, 0.8, 16), mat(0xc9d0d5, 0.3, 0.9)); s.position.set(-46, 10.4, z); power.add(s); });
+    shade(power); tagInfo(power, 'power');
+    const pRed = wire([[-41.8, 5, 24.5], [-38, 10, 24.2], [railXs[2] - 4, 13, RAIL_PLUS_Z], [railXs[2], BB_TOP + 5, RAIL_PLUS_Z]], COL.red);
+    const pBlk = wire([[-41.8, 5, 19.5], [-38, 9, 19.6], [railXs[3] - 4, 12, RAIL_MINUS_Z], [railXs[3], BB_TOP + 5, RAIL_MINUS_Z]], COL.black);
+    bbPlug(railXs[2], RAIL_PLUS_Z, COL.red); bbPlug(railXs[3], RAIL_MINUS_Z, COL.black);
+    addFlow(pRed.curve, 5, 1, 'power'); addFlow(pBlk.curve, 5, -1, 'power');
+
+    /* ---------- chia áp 10k/10k: R1 từ cột AO sang cột giữa (hàng c), R2 từ cột giữa (hàng a) xuống thanh − sau ---------- */
+    const resBody = mat(0x3b74c4, 0.45);
+    const BANDS = [0x7b4b2a, 0x111111, 0x111111, 0xd93a2f, 0x7b4b2a];   /* 10 kΩ, 5 vạch: nâu đen đen đỏ nâu */
+    function resistor(x0, z0, x1, z1, info) {
+      const g = group(info, scene);
+      const dx = x1 - x0, dz = z1 - z0, len = Math.hypot(dx, dz), y = BB_TOP + 2.6, ang = -Math.atan2(dz, dx);
+      [[x0, z0], [x1, z1]].forEach(([x, z]) => { const l = box(0.45, 3.4, 0.45, goldMat); l.position.set(x, BB_TOP + 0.9, z); g.add(l); });
+      const lead = box(len, 0.45, 0.45, goldMat); lead.position.set((x0 + x1) / 2, y, (z0 + z1) / 2); lead.rotation.y = ang; g.add(lead);
+      const bodyG = new THREE.Group(); bodyG.position.set((x0 + x1) / 2, y, (z0 + z1) / 2); bodyG.rotation.y = ang; g.add(bodyG);
+      const bl = Math.min(5.6, len - 1.2);
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, bl, 16), resBody); body.rotation.z = Math.PI / 2; bodyG.add(body);
+      BANDS.forEach((c, i) => {
+        const b = new THREE.Mesh(new THREE.CylinderGeometry(1.14, 1.14, 0.42, 16), mat(c, 0.5));
+        b.rotation.z = Math.PI / 2; b.position.x = -bl / 2 + 0.8 + i * (bl - 1.6) / 4; bodyG.add(b);
+      });
+      shade(g); tagInfo(g, info);
+    }
+    [[11, 14, 'mq2'], [20, 23, 'mq135']].forEach(([cAo, cMid, info]) => {
+      resistor(colX(cAo), ROWZ.c, colX(cMid), ROWZ.c, info);
+      resistor(colX(cMid), ROWZ.a, railSnap(colX(cMid)), BACK_MINUS_Z, info);
+    });
+
+    /* ---------- van gas minh họa: van bi đồng trên ống từ bình, servo MG90S đặt cạnh ---------- */
+    const valveG = group('valve', scene);
+    const VC = new THREE.Vector3(-78, 21.8, -16);   /* nâng van lên để tay van ngang tầm càng servo */
+    const hoseEnd = tank.localToWorld(new THREE.Vector3(-20, 2.5, 40));
+    const pipeMat = mat(0x1c1f22, 0.6);
+    const pipeIn = new THREE.CatmullRomCurve3([hoseEnd, new THREE.Vector3(-98, 4, -17), new THREE.Vector3(-90, 16, -16), new THREE.Vector3(VC.x - 7, VC.y, VC.z)]);
+    valveG.add(new THREE.Mesh(new THREE.TubeGeometry(pipeIn, 30, 1.2, 10, false), pipeMat));
+    const pipeOut = new THREE.CatmullRomCurve3([new THREE.Vector3(VC.x + 7, VC.y, VC.z), new THREE.Vector3(-66, 16, -17), new THREE.Vector3(-58, 4, -19), new THREE.Vector3(-54, 2.5, -20)]);
+    valveG.add(new THREE.Mesh(new THREE.TubeGeometry(pipeOut, 30, 1.2, 10, false), pipeMat));
+    const brass = mat(0xc9a14a, 0.3, 1);
+    const vBody = box(10, 8, 8, brass); vBody.position.copy(VC); valveG.add(vBody);
+    [-1, 1].forEach(s => {
+      const h = new THREE.Mesh(new THREE.CylinderGeometry(3.6, 3.6, 3, 6), brass);
+      h.rotation.z = Math.PI / 2; h.position.set(VC.x + s * 6.5, VC.y, VC.z); valveG.add(h);
+    });
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 2.6, 12), brass); stem.position.set(VC.x, VC.y + 5.3, VC.z); valveG.add(stem);
+    /* tay van: dọc theo ống là mở, vuông góc với ống là đóng */
+    const lever = new THREE.Group(); lever.position.set(VC.x, VC.y + 6.8, VC.z); valveG.add(lever);
+    const lv = box(16, 1.2, 3, mat(0xd93a2f, 0.45)); lv.position.x = 6; lever.add(lv);
+    /* servo MG90S: thân 22,8 × 22,7 × 12,2 mm, tai bắt vít, trục ra ở một đầu, càng một tay */
+    const SV = new THREE.Vector3(-62, 0, -32);
+    const sBody = box(22.8, 22.7, 12.2, mat(0x1d1a19, 0.5)); sBody.position.set(SV.x, 11.35, SV.z); valveG.add(sBody);
+    const sTabs = box(32.5, 2.4, 12.2, mat(0x1d1a19, 0.5)); sTabs.position.set(SV.x, 16.5, SV.z); valveG.add(sTabs);
+    const sTop = new THREE.Mesh(new THREE.CylinderGeometry(5.8, 5.8, 3, 24), mat(0x1d1a19, 0.5)); sTop.position.set(SV.x + 5.6, 24.2, SV.z); valveG.add(sTop);
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 2.4, 2.4, 16), mat(0xe9eef3, 0.35)); shaft.position.set(SV.x + 5.6, 26.9, SV.z); valveG.add(shaft);
+    const horn = new THREE.Group(); horn.position.set(SV.x + 5.6, 28.6, SV.z); valveG.add(horn);
+    const hornMat = mat(0xf2f2ee, 0.5);
+    const hub = new THREE.Mesh(new THREE.CylinderGeometry(3.4, 3.4, 1.8, 20), hornMat); horn.add(hub);
+    const arm = box(16, 1.6, 4, hornMat); arm.position.x = 7; horn.add(arm);
+    const sSticker = label3d(14, 6, x => {
+      x.fillStyle = '#b3262e'; x.fillRect(0, 0, 280, 120);
+      x.fillStyle = '#ffffff'; x.font = '700 64px sans-serif'; x.textAlign = 'center'; x.fillText('MG90S', 140, 84);
+    });
+    sSticker.position.set(SV.x - 2, 10, SV.z + 6.15); valveG.add(sSticker);
+    /* chân đỡ van, và thanh truyền nối đầu càng servo với đầu tay van (hình bình hành: hai tay cùng dài nên cùng góc) */
+    const vPost = box(5, VC.y - 4, 5, mat(0x7d868d, 0.5)); vPost.position.set(VC.x, (VC.y - 4) / 2, VC.z); valveG.add(vPost);
+    const vFoot = box(14, 1.5, 14, mat(0x7d868d, 0.5)); vFoot.position.set(VC.x, 0.75, VC.z); valveG.add(vFoot);
+    const LINK_R = 13, ROD_Y = horn.position.y + 1.8;
+    [horn, lever].forEach(g => {
+      const pin = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 3, 12), mat(0xc9d0d5, 0.3, 0.9));
+      pin.position.set(LINK_R, ROD_Y - g.position.y - 0.4, 0); g.add(pin);
+    });
+    const rodG = new THREE.Group(); valveG.add(rodG);
+    const hTip = new THREE.Vector3(horn.position.x + LINK_R, ROD_Y, horn.position.z);
+    const lTip = new THREE.Vector3(lever.position.x + LINK_R, ROD_Y, lever.position.z);
+    const rod = box(hTip.distanceTo(lTip), 0.9, 1.6, mat(0xd8dde1, 0.35, 0.8));
+    rod.position.addVectors(hTip, lTip).multiplyScalar(0.5); rod.rotation.y = -Math.atan2(lTip.z - hTip.z, lTip.x - hTip.x); rodG.add(rod);
+    shade(valveG); tagInfo(valveG, 'valve');
+    const sv0 = [SV.x + 11.6, 4];
+    const wServoR = wire([[sv0[0], sv0[1], SV.z - 1.3], [-44, 9, -28], [-38, 14, -25], [railXs[2] - 4, 14, BACK_PLUS_Z], [railXs[2], BB_TOP + 5, BACK_PLUS_Z]], COL.red, 0.55);
+    const wServoB = wire([[sv0[0], sv0[1], SV.z], [-44, 8, -26], [-36, 12, -22], [railXs[3] - 4, 12, BACK_MINUS_Z], [railXs[3], BB_TOP + 5, BACK_MINUS_Z]], COL.brown, 0.55);
+    bbPlug(railXs[2], BACK_PLUS_Z, COL.red); bbPlug(railXs[3], BACK_MINUS_Z, COL.brown);
+    const p13 = pinPos('g13');
+    const wServoS = wire([[sv0[0], sv0[1], SV.z + 1.3], [-44, 14, -30], [-30, 44, -36], [12, 70, -34], [52, 54, 2], [p13.x - 9, 30, p13.z], [p13.x - 0.2, PIN_TOP + 8, p13.z], [p13.x, PIN_TOP, p13.z]], COL.purple);
+    espPlug('g13', COL.purple);
+    addFlow(wServoR.curve, 4, 1, 'power'); addFlow(wServoB.curve, 4, -1, 'power');
+    addFlow(wServoS.curve, 10, -1, 'servo');
+
+    /* ---------- quạt hút 40 mm đứng trên đế, sau lưng hai cảm biến ---------- */
+    const fanG = group('fan', scene);
+    const FAN = new THREE.Vector3(-44, 23, -58);
+    const fanMat = mat(0x22272b, 0.55);
+    [[0, 18.5, 40, 3], [0, -18.5, 40, 3], [-18.5, 0, 3, 40], [18.5, 0, 3, 40]].forEach(([u, v, w, h]) => {
+      const b = box(w, h, 10, fanMat); b.position.set(FAN.x + u, FAN.y + v, FAN.z); fanG.add(b);
+    });
+    const shroud = new THREE.Mesh(new THREE.CylinderGeometry(18.6, 18.6, 10, 40, 1, true), mat(0x22272b, 0.55));
+    shroud.material.side = THREE.DoubleSide; shroud.rotation.x = Math.PI / 2; shroud.position.copy(FAN); fanG.add(shroud);
+    [0, 2.09, 4.19].forEach(a => {
+      const s = box(1.6, 17, 1.2, fanMat); s.position.set(FAN.x + Math.sin(a) * 9, FAN.y + Math.cos(a) * 9, FAN.z - 4.6); s.rotation.z = -a; fanG.add(s);
+    });
+    const fanBase = box(46, 3, 16, mat(0x3a4148, 0.6)); fanBase.position.set(FAN.x, 1.5, FAN.z); fanG.add(fanBase);
+    const fanRotor = new THREE.Group(); fanRotor.position.copy(FAN); fanG.add(fanRotor);
+    const fHub = new THREE.Mesh(new THREE.CylinderGeometry(7, 7, 8, 28), mat(0x1a1e21, 0.45)); fHub.rotation.x = Math.PI / 2; fanRotor.add(fHub);
+    const fHubLab = label3d(10, 10, x => { x.fillStyle = '#c9d0d5'; x.font = '700 60px sans-serif'; x.textAlign = 'center'; x.fillText('5V', 100, 120); });
+    fHubLab.position.z = 4.05; fanRotor.add(fHubLab);
+    const bladeMat = mat(0x2c3237, 0.5);
+    for (let k = 0; k < 7; k++) {
+      const pivot = new THREE.Group(); pivot.rotation.z = k * Math.PI * 2 / 7; fanRotor.add(pivot);
+      const b = box(6, 11, 0.7, bladeMat); b.position.y = 12.4; b.rotation.y = 0.5; pivot.add(b);
+    }
+    shade(fanG); tagInfo(fanG, 'fan');
+
+    /* ---------- module MOSFET JZ-MOS: cọc VOUT và VIN quay về phía breadboard, lỗ TRIG/PWM và GND ở đầu kia ---------- */
+    const MOS = new THREE.Vector3(36, 0, -56);
+    const mosG = group('fan', scene);
+    const mPcb = box(18, 1.6, 34, new THREE.MeshPhysicalMaterial({ color: 0x1d5aa8, roughness: 0.42, clearcoat: 0.7 }));
+    mPcb.position.set(MOS.x, 1.3, MOS.z); mosG.add(mPcb);
+    const mLab = label3d(18, 34, x => {
+      x.fillStyle = '#ffffff'; x.textAlign = 'center';
+      x.font = '700 40px monospace'; x.fillText('JZ-MOS', 180, 470);
+      /* mặt phẳng nằm ngửa: đỉnh canvas là phía −z, chỗ hai lỗ tín hiệu */
+      x.font = '600 26px monospace'; x.fillText('TRIG/PWM', 110, 150); x.fillText('GND', 270, 150);
+      x.fillText('VOUT', 90, 560); x.fillText('VIN', 270, 560);
+    });
+    mLab.rotation.x = -Math.PI / 2; mLab.position.set(MOS.x, 2.12, MOS.z); mosG.add(mLab);
+    [-4.5, 4.5].forEach(dx => { const q = box(6.5, 2.3, 6, mat(0x15191c, 0.4)); q.position.set(MOS.x + dx, 3.25, MOS.z - 1); mosG.add(q); });
+    const termMat = mat(0x2f7fd0, 0.45);
+    [-4.5, 4.5].forEach(dx => {
+      const t = box(8.4, 9, 8, termMat); t.position.set(MOS.x + dx, 6.6, MOS.z + 14); mosG.add(t);
+      [-2, 2].forEach(sx => { const s = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 0.8, 14), mat(0xc9d0d5, 0.3, 0.9)); s.position.set(MOS.x + dx + sx, 11.4, MOS.z + 14); mosG.add(s); });
+    });
+    const MOS_OFF = new THREE.Color(0x4a1d1a), MOS_ON = hdrC(0xff4a3d, 2.6);
+    const mosLedMat = new THREE.MeshBasicMaterial({ color: MOS_OFF.clone() });
+    const mosLed = box(1.6, 0.8, 1.2, mosLedMat); mosLed.position.set(MOS.x + 6, 2.5, MOS.z - 8); mosG.add(mosLed);
+    shade(mosG); tagInfo(mosG, 'fan');
+    /* VIN (bên phải, x = MOS.x + 4.5) lên thanh nguồn sau, VOUT (bên trái) sang quạt */
+    const tz = MOS.z + 18.2, vinX = MOS.x + 4.5, voutX = MOS.x - 4.5;
+    const wVinP = wire([[vinX - 2, 6, tz], [vinX - 2.5, 9, tz + 4], [railXs[23] + 2, 14, BACK_PLUS_Z - 3], [railXs[23], BB_TOP + 5, BACK_PLUS_Z]], COL.red, 0.55);
+    const wVinN = wire([[vinX + 2, 6, tz], [vinX + 2, 9, tz + 4], [railXs[24] + 2, 13, BACK_MINUS_Z - 3], [railXs[24], BB_TOP + 5, BACK_MINUS_Z]], COL.black, 0.55);
+    bbPlug(railXs[23], BACK_PLUS_Z, COL.red); bbPlug(railXs[24], BACK_MINUS_Z, COL.black);
+    const fanWire = (sx, z, color) => wire([[voutX + sx, 6, tz], [voutX + sx - 1, 9, tz + 3], [voutX - 8, 9, tz - 4], [FAN.x + 22, 7, FAN.z + z]], color, 0.5);
+    const wFanP = fanWire(-2, 1, COL.red), wFanN = fanWire(2, -1, COL.black);
+    const trigP = new THREE.Vector3(MOS.x - 3, 2.1, MOS.z - 13), gndP = new THREE.Vector3(MOS.x + 3, 2.1, MOS.z - 13);
+    pcbPlug(trigP.x, trigP.y, trigP.z, COL.green); pcbPlug(gndP.x, gndP.y, gndP.z, COL.black);
+    const p18 = pinPos('g18');
+    const wTrig = wire([[trigP.x, trigP.y + 5, trigP.z], [trigP.x, 18, trigP.z - 3], [62, 38, -46], [p18.x + 10, 34, p18.z - 14], [p18.x + 0.2, PIN_TOP + 8, p18.z], [p18.x, PIN_TOP, p18.z]], COL.green);
+    espPlug('g18', COL.green);
+    const wMosGnd = wire([[gndP.x, gndP.y + 5, gndP.z], [gndP.x, 20, gndP.z - 3], [28, 24, -48], [railXs[21] + 2, 15, BACK_MINUS_Z - 4], [railXs[21], BB_TOP + 5, BACK_MINUS_Z]], COL.black, 0.55);
+    bbPlug(railXs[21], BACK_MINUS_Z, COL.black);
+    addFlow(wVinP.curve, 4, -1, 'power'); addFlow(wVinN.curve, 4, 1, 'power');
+    addFlow(wFanP.curve, 5, 1, 'fanpwr'); addFlow(wFanN.curve, 5, -1, 'fanpwr');
+    addFlow(wTrig.curve, 9, -1, 'pwm'); addFlow(wMosGnd.curve, 4, 1, 'power');
+    /* luồng khí quạt hút: từ chỗ hai cảm biến về phía quạt rồi ra sau */
+    const fanStream = makeStream(new THREE.Vector3(2, 34, -10), new THREE.Vector3(FAN.x, FAN.y, FAN.z - 16), 0x8fbfe0, 110, 4, 7);
+    let valveAng = 0, servoMoving = false;
+
     /* ---------- nhãn HTML gắn vào toạ độ 3D ---------- */
     const labBox = $('labels');
     const labels = [];
@@ -1089,8 +1392,12 @@ body { margin: 0; }
       const e = document.createElement('div'); e.className = 'lab' + (cls ? ' ' + cls : ''); e.textContent = text; labBox.appendChild(e);
       const l = { e, pos: new THREE.Vector3(...pos) }; labels.push(l); return l;
     }
-    addLabel('MQ-2 · AO → D35', [mq2.cx - 4, 50, ROWZ.f + 6]);
-    addLabel('MQ-135 · AO → D34', [mq135.cx + 4, 60, ROWZ.f + 6]);
+    addLabel('MQ-2 · AO → chia áp → D35', [mq2.cx - 4, 50, ROWZ.f + 6]);
+    addLabel('MQ-135 · AO → chia áp → D34', [mq135.cx + 4, 60, ROWZ.f + 6]);
+    const lFan = addLabel('Quạt hút · D18', [FAN.x, FAN.y + 27, FAN.z]);
+    addLabel('Module MOSFET JZ-MOS', [MOS.x + 4, 16, MOS.z - 6]);
+    const lValve = addLabel('Van gas · servo D13', [SV.x, 38, SV.z]);
+    addLabel('Adapter 5V 2A', [-110, 34, 22]);
     const lBuz = addLabel('Còi · + → D4', [30.5, 24, 6]);
     addLabel('ESP32 DevKit V1', [ESP.x, 14, ESP.z + 31]);
     addLabel('Breadboard 400 điểm', [-26, 10, 29]);
@@ -1113,7 +1420,7 @@ body { margin: 0; }
 
     /* ---------- chọn linh kiện bằng chuột ---------- */
     const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
-    const pickables = [bread, mq2.g, mq135.g, bz, esp, tank, candle];
+    const pickables = [bread, mq2.g, mq135.g, bz, esp, tank, candle, power, valveG, fanG, mosG];
     function pick(ev) {
       const r = canvas.getBoundingClientRect();
       ndc.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
@@ -1187,11 +1494,26 @@ body { margin: 0; }
         flame.scale.set(sl * (1 + fk), sl * (1 + fk * 2), sl * (1 + fk));
         fLight.intensity = sl * (200 + fk * 450);
 
+        /* quạt quay theo % PWM, LED module MOSFET, servo và tay van xoay 0° (mở) / 90° (đóng) */
+        if (!reduce) fanRotor.rotation.z -= d.fan / 100 * 16 * d.dt;
+        mosLedMat.color.copy(d.fan > 0 ? MOS_ON : MOS_OFF);
+        const vt = d.valveClosed ? Math.PI / 2 : 0;
+        valveAng = reduce ? vt : valveAng + (vt - valveAng) * (1 - Math.exp(-d.dt * 7));
+        horn.rotation.y = valveAng; lever.rotation.y = valveAng;
+        rodG.position.set(LINK_R * Math.cos(valveAng) - LINK_R, 0, -LINK_R * Math.sin(valveAng));
+        servoMoving = Math.abs(vt - valveAng) > 0.03;
+        stepStream(fanStream, d.fan / 100, d.dt, d.now);
+        lFan.e.textContent = d.fan > 0 ? `Quạt hút · ${d.fan}%` : 'Quạt hút · tắt';
+        lValve.e.textContent = d.valveClosed ? 'Van gas · ĐÓNG' : 'Van gas · mở';
+        lValve.e.classList.toggle('warn', d.valveClosed);
+
         /* flowing dots */
         flows.forEach(f => {
           let speed = 0.16, show = true;
           if (f.kind === 'sig') { const lv = (f.src === 'g' ? d.simG : d.simA) - 150; speed = 0.1 + Math.max(0, lv) / 1800 * 0.6; }
           if (f.kind === 'buz') show = d.cmdOn;
+          if (f.kind === 'pwm' || f.kind === 'fanpwr') { show = d.fan > 0; speed = 0.1 + d.fan / 100 * 0.3; }
+          if (f.kind === 'servo') { show = servoMoving; speed = 0.6; }
           if (f.only === 'ok') show = state.buz === 'ok';
           if (!reduce) f.t = (f.t + speed * d.dt) % 1;
           f.dots.forEach((dot, i) => {
@@ -1246,6 +1568,38 @@ body { margin: 0; }
     .catch(err => { console.error(err); noGl(); });
   renderMap(); updateBadge();
 
+  /* thẻ van và quạt: mô phỏng lấy từ act, thiết bị thật lấy từ gói info (gửi lại mỗi khi van hoặc quạt đổi) */
+  let fanShown = -1;
+  function updateActuators(isLive, now) {
+    const info = live.info || {};
+    const vKnown = !isLive || typeof info.valve === 'string';
+    const closed = isLive ? info.valve === 'closed' : act.valveClosed;
+    const fan = isLive ? (Number.isFinite(+info.fan) && info.fan !== undefined ? +info.fan : null) : act.fan;
+
+    $('valveIc').classList.toggle('closed', vKnown && closed);
+    $('vValve').textContent = !vKnown ? '—' : closed ? 'Đóng' : 'Mở';
+    const cv = $('chipValve');
+    cv.textContent = !vKnown ? 'Chưa có dữ liệu' : closed ? 'Đã khóa gas' : 'Đang mở';
+    cv.className = 'chip' + (vKnown && closed ? ' alert' : '');
+    $('subValve').textContent = isLive ? 'Theo gói info của thiết bị. Tự đóng khi báo động gas, chỉ mở lại bằng lệnh'
+      : 'Tự đóng khi báo động gas, chỉ mở lại bằng lệnh';
+
+    $('vFan').textContent = fan === null ? '—' : fan;
+    const bar = $('fanBar'); bar.style.width = (fan || 0) + '%'; bar.classList.toggle('full', fan === 100);
+    if (fan !== fanShown) {
+      fanShown = fan;
+      const bl = $('fanBlades');
+      bl.style.animationPlayState = fan > 0 ? 'running' : 'paused';
+      if (fan > 0) bl.style.animationDuration = (0.25 + (100 - fan) / 100 * 1.2).toFixed(2) + 's';
+    }
+    const runon = !isLive && fan === 100 && !act.alarm ? Math.ceil((act.runonUntil - now) / 1000) : 0;
+    const testing = !isLive && !act.alarm && now < act.testUntil;
+    const cf = $('chipFan');
+    cf.textContent = fan === null ? 'Chưa có dữ liệu' : testing ? `Đang thử · còn ${Math.ceil((act.testUntil - now) / 1000)} giây` : fan === 0 ? 'Tắt'
+      : fan === 100 ? (runon > 0 ? `Chạy thêm ${runon} giây` : isLive ? 'Hút mạnh' : 'Hút mạnh · báo động gas') : 'Hút nhẹ · không khí kém';
+    cf.className = 'chip' + (fan > 0 ? ' alert' : '');
+  }
+
   let last = performance.now(), uiAcc = 1, lastPkt = -1;
   function frame(now) {
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
@@ -1276,7 +1630,13 @@ body { margin: 0; }
 
     const streamG = isLive ? (liveFresh() && live.g && live.g.alarm ? 1 : 0) : (state.scenario === 'gas' ? 1 : 0);
     const streamA = isLive ? (liveFresh() && live.a && live.a.poor ? 1 : 0) : (state.scenario === 'air' ? 1 : 0);
-    if (!isLive) discordWatch(alarm, poor, pg, pa, phG, phA);
+    if (!isLive) {
+      discordWatch(alarm, poor, pg, pa, phG, phA);
+      act.alarm = alarm;
+      if (alarm) { act.valveClosed = true; act.runonUntil = now + FAN_RUNON_S * 1000; }
+      act.fan = alarm || now < act.runonUntil ? 100 : poor ? FAN_POOR : 0;
+      if (!alarm && now < act.testUntil) act.fan = act.testPct;
+    }
     /* same patterns as gas_buzzer.c: gas 150/150 ms, poor air 200 on / 1800 off, silent at boot.
        In live mode alarm/poor come from the device's own flags, so the 3D buzzer beeps whenever the real one does. */
     let cmdOn = false, buzzMode = 'Im';
@@ -1287,10 +1647,13 @@ body { margin: 0; }
     const online = isLive ? (live.status === 'online' && liveFresh()) : t > 3.5;
     const phase = isLive ? ((performance.now() - live.lastMsg) % 1000) / 1000 : ((now - pw0) % 1000) / 1000;
 
+    const info = live.info || {};
+    const fan = isLive ? (Number.isFinite(+info.fan) && info.fan !== undefined ? +info.fan : 0) : act.fan;
+    const valveClosed = isLive ? info.valve === 'closed' : act.valveClosed;
     if (three) three.update({
       now, dt, heat: isLive ? 1 : 1 - Math.exp(-t / 1.8), flick: 0.04 * Math.sin(now / 130) + 0.03 * Math.sin(now / 47),
       gasHigh: phG > 1700, airHigh: phA > 640, phG, phA, simG: sim.g, simA: sim.a,
-      cmdOn, audible, ledOn, online, phase, lvG, lvA, streamG, streamA,
+      cmdOn, audible, ledOn, online, phase, lvG, lvA, streamG, streamA, fan, valveClosed,
     });
 
     if (!isLive) {
@@ -1323,6 +1686,7 @@ body { margin: 0; }
       $('subBuz').textContent = (ledOn ? 'LED GPIO2 sáng' : 'LED GPIO2 tắt') + (isLive ? ' · suy ra từ cờ báo động' : '');
       const cb = $('chipBuz'); cb.textContent = alarm ? 'Gas vượt ngưỡng' : poor ? 'Không khí kém' : 'Chờ'; cb.className = 'chip' + (ledOn ? ' alert' : '');
       if (isLive) $('stData').textContent = !live.lastMsg ? 'chưa có' : liveFresh() ? 'đang nhận' : `dừng ${age} giây trước`;
+      updateActuators(isLive, now);
     }
     requestAnimationFrame(frame);
   }

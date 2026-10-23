@@ -15,7 +15,11 @@ static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;
 static gas_sim_mode_t s_sim = GAS_SIM_OFF;
 static int64_t s_sim_until_us;
 static bool s_sim_discord = true;
+static bool s_sim_actuators = true;
 static volatile bool s_recal;
+static volatile gas_valve_req_t s_valve_req;
+static int s_fan_test_pct;
+static int64_t s_fan_test_until_us;
 static esp_timer_handle_t s_restart_timer;
 
 static void restart_cb(void *arg)
@@ -56,19 +60,47 @@ static void handle_sim(const cJSON *root, const char *mode)
     if (duration > 600) duration = 600;
     const cJSON *dc = cJSON_GetObjectItemCaseSensitive(root, "discord");
     bool discord = cJSON_IsBool(dc) ? cJSON_IsTrue(dc) : true;
+    const cJSON *ac = cJSON_GetObjectItemCaseSensitive(root, "actuators");
+    bool actuators = cJSON_IsBool(ac) ? cJSON_IsTrue(ac) : true;
 
     taskENTER_CRITICAL(&s_lock);
     s_sim = m;
     s_sim_until_us = esp_timer_get_time() + (int64_t)duration * 1000000;
     s_sim_discord = discord;
+    s_sim_actuators = actuators;
     taskEXIT_CRITICAL(&s_lock);
 
-    char msg[64];
+    char msg[96];
     if (m == GAS_SIM_OFF) snprintf(msg, sizeof(msg), "simulation off");
-    else snprintf(msg, sizeof(msg), "%s for %d s, discord %s", mode, duration, discord ? "on" : "off");
+    else snprintf(msg, sizeof(msg), "%s for %d s, discord %s, valve/fan %s", mode, duration,
+                  discord ? "on" : "off", actuators ? "on" : "off");
     ESP_LOGW(TAG, "Simulation: %s", msg);
     gas_mqtt_publish_ack("sim", true, msg);
     gas_mqtt_publish_info();
+}
+
+static void handle_fan_test(const cJSON *root, int pct)
+{
+    if (pct < 0 || pct > 100) {
+        gas_mqtt_publish_ack("fan_test", false, "fan_test must be 0-100");
+        return;
+    }
+    int duration = 10;
+    const cJSON *d = cJSON_GetObjectItemCaseSensitive(root, "duration");
+    if (cJSON_IsNumber(d)) duration = (int)d->valuedouble;
+    if (duration < 5) duration = 5;
+    if (duration > 60) duration = 60;
+
+    taskENTER_CRITICAL(&s_lock);
+    s_fan_test_pct = pct;
+    s_fan_test_until_us = pct > 0 ? esp_timer_get_time() + (int64_t)duration * 1000000 : 0;
+    taskEXIT_CRITICAL(&s_lock);
+
+    char msg[48];
+    if (pct > 0) snprintf(msg, sizeof(msg), "fan %d%% for %d s", pct, duration);
+    else snprintf(msg, sizeof(msg), "fan test off");
+    ESP_LOGW(TAG, "Fan test: %s", msg);
+    gas_mqtt_publish_ack("fan_test", true, msg);
 }
 
 static void handle_wifi(const cJSON *wifi)
@@ -133,6 +165,12 @@ void gas_control_handle_json(const char *json, size_t len)
     const cJSON *it;
     if (cJSON_IsString(it = cJSON_GetObjectItemCaseSensitive(root, "sim"))) {
         handle_sim(root, it->valuestring);
+    } else if (cJSON_IsString(it = cJSON_GetObjectItemCaseSensitive(root, "valve"))) {
+        if (strcmp(it->valuestring, "open") == 0) s_valve_req = GAS_VALVE_REQ_OPEN;
+        else if (strcmp(it->valuestring, "close") == 0) s_valve_req = GAS_VALVE_REQ_CLOSE;
+        else gas_mqtt_publish_ack("valve", false, "valve must be open or close");
+    } else if (cJSON_IsNumber(it = cJSON_GetObjectItemCaseSensitive(root, "fan_test"))) {
+        handle_fan_test(root, (int)it->valuedouble);
     } else if (cJSON_IsObject(it = cJSON_GetObjectItemCaseSensitive(root, "wifi"))) {
         handle_wifi(it);
     } else if (cJSON_IsString(it = cJSON_GetObjectItemCaseSensitive(root, "broker"))) {
@@ -148,7 +186,7 @@ void gas_control_handle_json(const char *json, size_t len)
     cJSON_Delete(root);
 }
 
-gas_sim_mode_t gas_control_sim(bool *discord)
+gas_sim_mode_t gas_control_sim(bool *discord, bool *actuators)
 {
     bool expired = false;
     taskENTER_CRITICAL(&s_lock);
@@ -158,18 +196,20 @@ gas_sim_mode_t gas_control_sim(bool *discord)
     }
     gas_sim_mode_t m = s_sim;
     bool d = s_sim_discord;
+    bool a = s_sim_actuators;
     taskEXIT_CRITICAL(&s_lock);
     if (expired) {
         ESP_LOGW(TAG, "Simulation ended");
         gas_mqtt_publish_info();
     }
     if (discord) *discord = d;
+    if (actuators) *actuators = a;
     return m;
 }
 
 const char *gas_control_sim_name(void)
 {
-    gas_sim_mode_t m = gas_control_sim(NULL);
+    gas_sim_mode_t m = gas_control_sim(NULL, NULL);
     return m == GAS_SIM_GAS ? "gas" : (m == GAS_SIM_AIR ? "air" : "off");
 }
 
@@ -178,4 +218,22 @@ bool gas_control_take_recalibrate(void)
     bool r = s_recal;
     s_recal = false;
     return r;
+}
+
+gas_valve_req_t gas_control_take_valve_request(void)
+{
+    gas_valve_req_t r = s_valve_req;
+    s_valve_req = GAS_VALVE_REQ_NONE;
+    return r;
+}
+
+bool gas_control_fan_test(int *percent)
+{
+    taskENTER_CRITICAL(&s_lock);
+    bool active = s_fan_test_until_us != 0 && esp_timer_get_time() < s_fan_test_until_us;
+    if (!active) s_fan_test_until_us = 0;
+    int p = s_fan_test_pct;
+    taskEXIT_CRITICAL(&s_lock);
+    if (active && percent) *percent = p;
+    return active;
 }

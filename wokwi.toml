@@ -1,0 +1,12 @@
+# Wokwi simulation of the gas monitor (VS Code: "Wokwi: Start Simulator").
+# Build first:
+#   idf.py -B build_wokwi -D SDKCONFIG=build_wokwi/sdkconfig -D "SDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.wokwi" build
+[wokwi]
+version = 1
+firmware = 'build_wokwi/flasher_args.json'
+elf = 'build_wokwi/air_gas.elf'
+
+[net]
+# lets the simulated ESP32 reach services on this PC as host.wokwi.internal
+# (Mosquitto on 1883, so Node-RED and the dashboards work unchanged)
+gateway = true

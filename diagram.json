@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "author": "Nhóm 12 – Trạm cảnh báo rò rỉ gas",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "wokwi-esp32-devkit-v1", "id": "esp", "top": 0, "left": 0, "attrs": {} },
+    {
+      "type": "wokwi-gas-sensor",
+      "id": "mq2",
+      "top": -170,
+      "left": -290,
+      "attrs": { "ppm": "300" }
+    },
+    {
+      "type": "wokwi-gas-sensor",
+      "id": "mq135",
+      "top": -10,
+      "left": -310,
+      "attrs": { "ppm": "300" }
+    },
+    { "type": "wokwi-buzzer", "id": "bz", "top": -120, "left": 190, "attrs": { "volume": "0.3" } },
+    { "type": "wokwi-led", "id": "led_bz", "top": -70, "left": 270, "attrs": { "color": "red", "label": "Còi" } },
+    { "type": "wokwi-led", "id": "led_alarm", "top": 60, "left": 270, "attrs": { "color": "orange", "label": "LED báo động" } },
+    { "type": "wokwi-led", "id": "led_fan", "top": 160, "left": 270, "attrs": { "color": "blue", "label": "Quạt hút" } },
+    { "type": "wokwi-servo", "id": "valve", "top": 240, "left": -40, "attrs": { "horn": "single" } }
+  ],
+  "connections": [
+    [ "esp:TX0", "$serialMonitor:RX", "", [] ],
+    [ "esp:RX0", "$serialMonitor:TX", "", [] ],
+
+    [ "mq2:VCC", "esp:VIN", "red", [] ],
+    [ "mq2:GND", "esp:GND.2", "black", [] ],
+    [ "mq2:AOUT", "esp:D35", "orange", [] ],
+
+    [ "mq135:VCC", "esp:VIN", "red", [] ],
+    [ "mq135:GND", "esp:GND.2", "black", [] ],
+    [ "mq135:AOUT", "esp:D34", "gold", [] ],
+
+    [ "bz:2", "esp:D4", "green", [] ],
+    [ "bz:1", "esp:GND.1", "black", [] ],
+    [ "led_bz:A", "esp:D4", "green", [] ],
+    [ "led_bz:C", "esp:GND.1", "black", [] ],
+
+    [ "led_alarm:A", "esp:D2", "orange", [] ],
+    [ "led_alarm:C", "esp:GND.1", "black", [] ],
+
+    [ "led_fan:A", "esp:D18", "blue", [] ],
+    [ "led_fan:C", "esp:GND.1", "black", [] ],
+
+    [ "valve:PWM", "esp:D13", "purple", [] ],
+    [ "valve:V+", "esp:VIN", "red", [] ],
+    [ "valve:GND", "esp:GND.2", "black", [] ]
+  ],
+  "dependencies": {}
+}

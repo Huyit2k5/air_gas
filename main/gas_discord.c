@@ -111,3 +111,12 @@ bool gas_discord_send_air(float co2_ppm, uint16_t mv, bool simulated)
              CONFIG_GAS_DEVICE_NAME, simulated ? "[GIẢ LẬP] " : "", (int)co2_ppm, threshold, mv);
     return send_text(text);
 }
+
+bool gas_discord_send_valve_closed(bool simulated)
+{
+    char text[256];
+    snprintf(text, sizeof(text), "**%s** - %sĐÃ KHOÁ VAN GAS tự động, quạt hút đang chạy. "
+             "Van chỉ mở lại khi hết báo động và có lệnh mở từ dashboard.",
+             CONFIG_GAS_DEVICE_NAME, simulated ? "[GIẢ LẬP] " : "");
+    return send_text(text);
+}

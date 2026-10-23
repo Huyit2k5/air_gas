@@ -25,6 +25,8 @@ services:
       - node_red_data:/data
     environment:
       - TZ=Asia/Ho_Chi_Minh
+      # Discord alerts from the "2. Luồng khẩn cấp" flow; set it in node-red/.env
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
 
   homeassistant:
     image: ghcr.io/home-assistant/home-assistant:stable

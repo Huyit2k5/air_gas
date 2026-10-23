@@ -1,0 +1,25 @@
+# Extra defaults for the Wokwi simulation build (see wokwi.toml):
+#   idf.py -B build_wokwi -D SDKCONFIG=build_wokwi/sdkconfig -D "SDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.wokwi" build
+# Same pins as the real board; only Wi-Fi and broker differ.
+CONFIG_GAS_ADC_PIN=35
+CONFIG_GAS_ADC_CHANNEL=7
+CONFIG_AQ_ENABLE=y
+CONFIG_AQ_ADC_PIN=34
+CONFIG_AQ_ADC_CHANNEL=6
+CONFIG_GAS_LED_GPIO=2
+CONFIG_GAS_BUZZER_ENABLE=y
+CONFIG_GAS_BUZZER_GPIO=4
+CONFIG_GAS_FAN_ENABLE=y
+CONFIG_GAS_FAN_GPIO=18
+CONFIG_GAS_VALVE_ENABLE=y
+CONFIG_GAS_VALVE_GPIO=13
+CONFIG_GAS_DEVICE_NAME="Gas-Monitor-01"
+
+# Wokwi's simulated access point: open network, no password
+CONFIG_GAS_WIFI_SSID="Wokwi-GUEST"
+CONFIG_GAS_WIFI_PASSWORD=""
+# The Wokwi private gateway ([net] gateway = true) maps this name to the PC,
+# so the simulated ESP32 reaches the Mosquitto container like the real board.
+CONFIG_GAS_MQTT_BROKER_URI="mqtt://host.wokwi.internal:1883"
+# Discord webhook: set it at run time with {"discord_webhook":"..."} on the cmd topic
+CONFIG_GAS_DISCORD_WEBHOOK=""

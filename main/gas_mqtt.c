@@ -5,7 +5,9 @@
 #include "mqtt_client.h"
 #include "gas_config.h"
 #include "gas_control.h"
+#include "gas_fan.h"
 #include "gas_network.h"
+#include "gas_valve.h"
 #include <string.h>
 #include <stdio.h>
 
@@ -213,9 +215,11 @@ void gas_mqtt_publish_info(void)
     }
     char payload[256];
     int n = snprintf(payload, sizeof(payload),
-                     "{\"fw\":\"%s\",\"ip\":\"%s\",\"rssi\":%d,\"ssid\":\"%s\",\"sim\":\"%s\"}",
+                     "{\"fw\":\"%s\",\"ip\":\"%s\",\"rssi\":%d,\"ssid\":\"%s\",\"sim\":\"%s\","
+                     "\"valve\":\"%s\",\"fan\":%d}",
                      GAS_FW_VERSION, gas_network_get_ip(), rssi, gas_config_ssid(),
-                     gas_control_sim_name());
+                     gas_control_sim_name(), gas_valve_is_closed() ? "closed" : "open",
+                     gas_fan_get());
     if (n < 0 || (size_t)n >= sizeof(payload)) {
         return;
     }

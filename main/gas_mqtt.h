@@ -20,7 +20,8 @@ void gas_mqtt_publish_air_quality(float co2_ppm, uint16_t mv, bool poor, bool si
 /* airgas/<device>/ack: result of a command received on airgas/<device>/cmd */
 void gas_mqtt_publish_ack(const char *cmd, bool ok, const char *msg);
 
-/* airgas/<device>/info (retained): firmware version, IP, RSSI, simulation */
+/* airgas/<device>/info (retained): firmware version, IP, RSSI, simulation,
+ * valve ("open"/"closed") and fan speed (%). Also re-sent when those change. */
 void gas_mqtt_publish_info(void);
 
 #endif

@@ -15,4 +15,7 @@ bool gas_discord_send_alarm(float ppm, uint16_t mv, bool simulated);
 
 bool gas_discord_send_air(float co2_ppm, uint16_t mv, bool simulated);
 
+/* "valve closed automatically" notice, sent right after a gas alarm */
+bool gas_discord_send_valve_closed(bool simulated);
+
 #endif
