@@ -124,9 +124,11 @@ void app_main(void)
         bool poor_air = air_sensor_is_poor(air.co2_ppm);
 
         gas_led_set(alarm || poor_air);
+        /* a buzzer test beeps the gas pattern only while nothing real is beeping */
         gas_buzzer_set(alarm ? GAS_BUZZER_GAS
                              : (poor_air ? GAS_BUZZER_POOR_AIR
-                                         : GAS_BUZZER_OFF));
+                                         : (gas_control_buzzer_test() ? GAS_BUZZER_GAS
+                                                                      : GAS_BUZZER_OFF)));
         gas_mqtt_publish_reading(reading.ppm, reading.mv, alarm, gas_sim, reading.fault);
         gas_mqtt_publish_air_quality(air.co2_ppm, air.mv, poor_air, air_sim, air.fault);
 

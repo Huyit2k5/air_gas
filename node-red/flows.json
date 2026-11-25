@@ -530,7 +530,8 @@
         "fn-discord",
         "link-out-notify",
         "fn-alert-log",
-        "debug-alert"
+        "debug-alert",
+        "fn-hermes"
       ]
     ]
   },
@@ -592,6 +593,73 @@
     "libs": [],
     "x": 920,
     "y": 100,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "fn-hermes",
+    "type": "function",
+    "z": "tab-emergency",
+    "name": "Báo Hermes Agent",
+    "func": "// Báo Hermes Agent: Hermes xem tình hình qua MCP airgas rồi nhắn riêng cho chủ nhà trên Discord.\n// Chỉ gửi sự kiện quan trọng, vì mỗi lần là một lượt gọi LLM. Secret lấy từ HERMES_WEBHOOK_SECRET (node-red/.env).\nif (!['danger', 'poor', 'fault', 'offline'].includes(msg.event)) return null;\nconst secret = env.get('HERMES_WEBHOOK_SECRET');\nif (!secret) {\n    node.status({ fill: 'grey', shape: 'ring', text: 'chưa đặt HERMES_WEBHOOK_SECRET' });\n    return null;\n}\nconst body = JSON.stringify({ device: msg.topic, event: msg.event, message: String(msg.payload) });\nconst ts = Math.floor(Date.now() / 1000).toString();\n// chữ ký V2 của Hermes: HMAC-SHA256 trên \"<timestamp>.<body>\"\nconst sig = crypto.createHmac('sha256', secret).update(ts + '.' + body).digest('hex');\nreturn {\n    method: 'POST',\n    url: 'http://host.docker.internal:8644/webhooks/airgas-alarm',\n    headers: { 'Content-Type': 'application/json', 'X-Webhook-Timestamp': ts, 'X-Webhook-Signature-V2': sig },\n    payload: body,\n};",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [
+      {
+        "var": "crypto",
+        "module": "crypto"
+      }
+    ],
+    "x": 500,
+    "y": 280,
+    "wires": [
+      [
+        "http-hermes"
+      ]
+    ]
+  },
+  {
+    "id": "http-hermes",
+    "type": "http request",
+    "z": "tab-emergency",
+    "name": "Hermes webhook",
+    "method": "use",
+    "ret": "txt",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "insecureHTTPParser": false,
+    "authType": "",
+    "senderr": false,
+    "headers": [],
+    "x": 720,
+    "y": 280,
+    "wires": [
+      [
+        "fn-hermes-result"
+      ]
+    ]
+  },
+  {
+    "id": "fn-hermes-result",
+    "type": "function",
+    "z": "tab-emergency",
+    "name": "Kết quả Hermes",
+    "func": "// Hermes trả 202 khi đã nhận và cho agent xử lý\nif (msg.statusCode >= 200 && msg.statusCode < 300) {\n    node.status({ fill: 'green', shape: 'dot', text: 'Hermes đã nhận ' + new Date().toLocaleTimeString('vi-VN') });\n} else {\n    node.status({ fill: 'red', shape: 'dot', text: 'lỗi ' + (msg.statusCode || msg.error) });\n    node.warn(msg.payload);\n}\nreturn null;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 920,
+    "y": 280,
     "wires": [
       []
     ]
@@ -1334,7 +1402,7 @@
     "type": "function",
     "z": "tab-ha",
     "name": "Cấu hình HA discovery",
-    "func": "// Home Assistant MQTT discovery: một thiết bị, các cảm biến đọc từ airgas/<dev>/state\nconst DEV = 'Gas-Monitor-01';\nconst id = DEV.toLowerCase().replace(/[^a-z0-9]+/g, '_');\nconst state = `airgas/${DEV}/state`;\nconst device = { identifiers: [id], name: 'Trạm cảnh báo gas', manufacturer: 'Nhóm 12 – HUIT',\n                 model: 'ESP32 + MQ-2 + MQ-135' };\nconst avail = { availability_topic: `airgas/${DEV}/status`, payload_available: 'online', payload_not_available: 'offline' };\nconst out = [];\nfunction cfg(component, key, body) {\n    out.push({ topic: `homeassistant/${component}/${id}_${key}/config`, retain: true,\n               payload: Object.assign({ unique_id: `${id}_${key}`, object_id: `${id}_${key}`, device }, avail, body) });\n}\ncfg('sensor', 'gas', { name: 'Nồng độ gas', state_topic: state, unit_of_measurement: 'ppm', icon: 'mdi:gas-cylinder',\n    value_template: \"{{ value_json.gas.ppm if value_json.gas is defined and not value_json.gas.fault else none }}\" });\ncfg('sensor', 'co2', { name: 'CO2 tương đương', state_topic: state, unit_of_measurement: 'ppm', icon: 'mdi:molecule-co2',\n    value_template: \"{{ value_json.air.co2 if value_json.air is defined and not value_json.air.fault else none }}\" });\ncfg('sensor', 'level', { name: 'Mức cảnh báo', state_topic: state, icon: 'mdi:alert', value_template: '{{ value_json.level }}' });\ncfg('binary_sensor', 'gas_alarm', { name: 'Rò rỉ gas', device_class: 'gas', state_topic: state,\n    value_template: \"{{ 'ON' if value_json.level == 'NGUY_HIEM' else 'OFF' }}\" });\ncfg('sensor', 'valve', { name: 'Van gas', state_topic: state, icon: 'mdi:valve', value_template: '{{ value_json.valve }}' });\ncfg('sensor', 'fan', { name: 'Quạt hút', state_topic: state, unit_of_measurement: '%', icon: 'mdi:fan',\n    value_template: '{{ value_json.fan }}' });\ncfg('sensor', 'buzzer', { name: 'Còi báo động', state_topic: state, icon: 'mdi:bullhorn',\n    value_template: \"{{ {'fast': 'Bíp nhanh', 'slow': 'Bíp chậm', 'off': 'Im'}[value_json.buzzer] | default('?') }}\" });\ncfg('button', 'valve_open', { name: 'Xác nhận an toàn – Mở van', command_topic: `airgas/${DEV}/cmd`,\n    payload_press: '{\"valve\":\"open\"}', icon: 'mdi:valve-open' });\ncfg('button', 'valve_close', { name: 'Khoá van', command_topic: `airgas/${DEV}/cmd`,\n    payload_press: '{\"valve\":\"close\"}', icon: 'mdi:valve-closed' });\ncfg('button', 'fan_test', { name: 'Thử quạt 10 giây', command_topic: `airgas/${DEV}/cmd`,\n    payload_press: '{\"fan_test\":60,\"duration\":10}', icon: 'mdi:fan-alert' });\ncfg('button', 'recalibrate', { name: 'Hiệu chuẩn cảm biến', command_topic: `airgas/${DEV}/cmd`,\n    payload_press: '{\"recalibrate\":true}', icon: 'mdi:tune-vertical', entity_category: 'config' });\ncfg('sensor', 'fw', { name: 'Phiên bản firmware', state_topic: state, icon: 'mdi:chip', entity_category: 'diagnostic',\n    value_template: '{{ value_json.fw | default(none) }}' });\ncfg('sensor', 'rssi', { name: 'Sóng Wi-Fi', state_topic: state, unit_of_measurement: 'dBm', device_class: 'signal_strength',\n    entity_category: 'diagnostic', value_template: '{{ value_json.rssi | default(none) }}' });\nnode.status({ fill: 'green', shape: 'dot', text: out.length + ' cấu hình đã gửi' });\nreturn [out];\n",
+    "func": "// Home Assistant MQTT discovery: một thiết bị, các cảm biến đọc từ airgas/<dev>/state\nconst DEV = 'Gas-Monitor-01';\nconst id = DEV.toLowerCase().replace(/[^a-z0-9]+/g, '_');\nconst state = `airgas/${DEV}/state`;\nconst device = { identifiers: [id], name: 'Trạm cảnh báo gas', manufacturer: 'Nhóm 12 – HUIT',\n                 model: 'ESP32 + MQ-2 + MQ-135' };\nconst avail = { availability_topic: `airgas/${DEV}/status`, payload_available: 'online', payload_not_available: 'offline' };\nconst out = [];\nfunction cfg(component, key, body) {\n    out.push({ topic: `homeassistant/${component}/${id}_${key}/config`, retain: true,\n               payload: Object.assign({ unique_id: `${id}_${key}`, object_id: `${id}_${key}`, device }, avail, body) });\n}\ncfg('sensor', 'gas', { name: 'Nồng độ gas', state_topic: state, unit_of_measurement: 'ppm', icon: 'mdi:gas-cylinder',\n    value_template: \"{{ value_json.gas.ppm if value_json.gas is defined and not value_json.gas.fault else none }}\" });\ncfg('sensor', 'co2', { name: 'CO2 tương đương', state_topic: state, unit_of_measurement: 'ppm', icon: 'mdi:molecule-co2',\n    value_template: \"{{ value_json.air.co2 if value_json.air is defined and not value_json.air.fault else none }}\" });\ncfg('sensor', 'level', { name: 'Mức cảnh báo', state_topic: state, icon: 'mdi:alert', value_template: '{{ value_json.level }}' });\ncfg('binary_sensor', 'gas_alarm', { name: 'Rò rỉ gas', device_class: 'gas', state_topic: state,\n    value_template: \"{{ 'ON' if value_json.level == 'NGUY_HIEM' else 'OFF' }}\" });\ncfg('sensor', 'valve', { name: 'Van gas', state_topic: state, icon: 'mdi:valve', value_template: '{{ value_json.valve }}' });\ncfg('sensor', 'fan', { name: 'Quạt hút', state_topic: state, unit_of_measurement: '%', icon: 'mdi:fan',\n    value_template: '{{ value_json.fan }}' });\ncfg('sensor', 'buzzer', { name: 'Còi báo động', state_topic: state, icon: 'mdi:bullhorn',\n    value_template: \"{{ {'fast': 'Bíp nhanh', 'slow': 'Bíp chậm', 'off': 'Im'}[value_json.buzzer] | default('?') }}\" });\ncfg('button', 'valve_open', { name: 'Xác nhận an toàn – Mở van', command_topic: `airgas/${DEV}/cmd`,\n    payload_press: '{\"valve\":\"open\"}', icon: 'mdi:valve-open' });\ncfg('button', 'valve_close', { name: 'Khoá van', command_topic: `airgas/${DEV}/cmd`,\n    payload_press: '{\"valve\":\"close\"}', icon: 'mdi:valve-closed' });\ncfg('button', 'fan_test', { name: 'Thử quạt 10 giây', command_topic: `airgas/${DEV}/cmd`,\n    payload_press: '{\"fan_test\":60,\"duration\":10}', icon: 'mdi:fan-alert' });\ncfg('button', 'buzzer_test', { name: 'Thử còi 3 giây', command_topic: `airgas/${DEV}/cmd`,\n    payload_press: '{\"buzzer_test\":3}', icon: 'mdi:bullhorn-variant' });\ncfg('button', 'recalibrate', { name: 'Hiệu chuẩn cảm biến', command_topic: `airgas/${DEV}/cmd`,\n    payload_press: '{\"recalibrate\":true}', icon: 'mdi:tune-vertical', entity_category: 'config' });\ncfg('sensor', 'fw', { name: 'Phiên bản firmware', state_topic: state, icon: 'mdi:chip', entity_category: 'diagnostic',\n    value_template: '{{ value_json.fw | default(none) }}' });\ncfg('sensor', 'rssi', { name: 'Sóng Wi-Fi', state_topic: state, unit_of_measurement: 'dBm', device_class: 'signal_strength',\n    entity_category: 'diagnostic', value_template: '{{ value_json.rssi | default(none) }}' });\nnode.status({ fill: 'green', shape: 'dot', text: out.length + ' cấu hình đã gửi' });\nreturn [out];\n",
     "outputs": 1,
     "timeout": 0,
     "noerr": 0,

@@ -1,0 +1,12 @@
+# MCP server airgas qua streamable HTTP (cổng 8000, đường dẫn /mcp)
+FROM python:3.12-slim
+ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 \
+    MCP_TRANSPORT=streamable-http MCP_HOST=0.0.0.0 MCP_PORT=8000
+WORKDIR /app
+COPY requirements-mcp.txt .
+RUN pip install --no-cache-dir -r requirements-mcp.txt
+COPY airgas_mcp.py .
+RUN useradd --no-create-home --uid 10001 app
+USER app
+EXPOSE 8000
+CMD ["python", "airgas_mcp.py"]

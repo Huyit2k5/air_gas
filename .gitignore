@@ -17,3 +17,15 @@ sdkconfig.old
 
 # Secrets for docker compose (Discord webhook URL)
 node-red/.env
+
+# AI agent: secrets and virtualenv
+ai-agent/.env
+ai-agent/.venv/
+__pycache__/
+
+# Course reports, slides and working notes (not code)
+*.docx
+*.pptx
+*.xlsx
+HANDOFF.md
+.playwright-mcp/

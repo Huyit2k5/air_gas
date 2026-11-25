@@ -1,0 +1,4 @@
+mcp>=2.3,<3
+openai>=1.40
+discord.py>=2.4
+python-dotenv>=1.0

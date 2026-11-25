@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#define GAS_FW_VERSION "1.4.0"
+#define GAS_FW_VERSION "1.5.0"
 
 typedef enum {
     GAS_SIM_OFF = 0,
@@ -23,6 +23,7 @@ typedef enum {
  *   {"sim":"gas"|"air"|"off","duration":60,"discord":true,"actuators":true}
  *   {"valve":"open"|"close"}                   open is refused during a gas alarm
  *   {"fan_test":60,"duration":10}              fan at 0-100 % for 5-60 s, 0 stops; a gas alarm still wins
+ *   {"buzzer_test":3}                          beep the gas pattern for 1-10 s, 0 stops; no Discord, no valve
  *   {"wifi":{"ssid":"...","pass":"..."}}       saved, then restart
  *   {"broker":"mqtt://192.168.1.14:1883"}      saved, then restart
  *   {"discord_webhook":"https://discord.com/api/webhooks/..."}
@@ -43,5 +44,8 @@ gas_valve_req_t gas_control_take_valve_request(void);
 
 /* True while a "fan_test" command is running; *percent gets its speed. */
 bool gas_control_fan_test(int *percent);
+
+/* True while a "buzzer_test" command is running. */
+bool gas_control_buzzer_test(void);
 
 #endif

@@ -20,6 +20,7 @@ static volatile bool s_recal;
 static volatile gas_valve_req_t s_valve_req;
 static int s_fan_test_pct;
 static int64_t s_fan_test_until_us;
+static int64_t s_buzzer_test_until_us;
 static esp_timer_handle_t s_restart_timer;
 
 static void restart_cb(void *arg)
@@ -103,6 +104,23 @@ static void handle_fan_test(const cJSON *root, int pct)
     gas_mqtt_publish_ack("fan_test", true, msg);
 }
 
+static void handle_buzzer_test(int secs)
+{
+    if (secs < 0 || secs > 10) {
+        gas_mqtt_publish_ack("buzzer_test", false, "buzzer_test must be 0-10 seconds");
+        return;
+    }
+    taskENTER_CRITICAL(&s_lock);
+    s_buzzer_test_until_us = secs > 0 ? esp_timer_get_time() + (int64_t)secs * 1000000 : 0;
+    taskEXIT_CRITICAL(&s_lock);
+
+    char msg[40];
+    if (secs > 0) snprintf(msg, sizeof(msg), "buzzer on for %d s", secs);
+    else snprintf(msg, sizeof(msg), "buzzer test off");
+    ESP_LOGW(TAG, "Buzzer test: %s", msg);
+    gas_mqtt_publish_ack("buzzer_test", true, msg);
+}
+
 static void handle_wifi(const cJSON *wifi)
 {
     const cJSON *ssid = cJSON_GetObjectItemCaseSensitive(wifi, "ssid");
@@ -171,6 +189,8 @@ void gas_control_handle_json(const char *json, size_t len)
         else gas_mqtt_publish_ack("valve", false, "valve must be open or close");
     } else if (cJSON_IsNumber(it = cJSON_GetObjectItemCaseSensitive(root, "fan_test"))) {
         handle_fan_test(root, (int)it->valuedouble);
+    } else if (cJSON_IsNumber(it = cJSON_GetObjectItemCaseSensitive(root, "buzzer_test"))) {
+        handle_buzzer_test((int)it->valuedouble);
     } else if (cJSON_IsObject(it = cJSON_GetObjectItemCaseSensitive(root, "wifi"))) {
         handle_wifi(it);
     } else if (cJSON_IsString(it = cJSON_GetObjectItemCaseSensitive(root, "broker"))) {
@@ -235,5 +255,14 @@ bool gas_control_fan_test(int *percent)
     int p = s_fan_test_pct;
     taskEXIT_CRITICAL(&s_lock);
     if (active && percent) *percent = p;
+    return active;
+}
+
+bool gas_control_buzzer_test(void)
+{
+    taskENTER_CRITICAL(&s_lock);
+    bool active = s_buzzer_test_until_us != 0 && esp_timer_get_time() < s_buzzer_test_until_us;
+    if (!active) s_buzzer_test_until_us = 0;
+    taskEXIT_CRITICAL(&s_lock);
     return active;
 }

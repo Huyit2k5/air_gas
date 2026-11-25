@@ -274,6 +274,8 @@ body { margin: 0; }
       <div class="big" id="vBuz" style="font-size:22px">Im</div>
       <div class="sub" id="subBuz">LED GPIO2 tắt</div>
       <span class="chip" id="chipBuz">Chờ</span>
+      <div class="row"><button type="button" class="btn" id="btnBuzTest">Thử còi 3 giây</button></div>
+      <div class="sub" id="buzNote"></div>
     </div>
     <div class="card">
       <h3>Van gas · servo MG90S ở D13</h3>
@@ -552,7 +554,17 @@ body { margin: 0; }
   /* van và quạt ở chế độ mô phỏng, theo gas_main.c: báo động gas đóng van (giữ đóng đến khi có lệnh mở)
      và chạy quạt 100% thêm GAS_FAN_RUNON_S giây; không khí kém chạy quạt GAS_FAN_POOR_PERCENT */
   const FAN_POOR = 60, FAN_RUNON_S = 60;
-  const act = { valveClosed: false, fan: 0, runonUntil: 0, alarm: false, testPct: 0, testUntil: 0 };
+  const act = { valveClosed: false, fan: 0, runonUntil: 0, alarm: false, testPct: 0, testUntil: 0, buzUntil: 0 };
+  /* thử còi: lệnh {"buzzer_test":3} (firmware 1.5.0+), kêu nhịp báo gas, không đóng van, không gửi Discord */
+  $('btnBuzTest').addEventListener('click', () => {
+    if (state.source === 'live') {
+      sendCmd({ buzzer_test: 3 }, 'Đã gửi lệnh thử còi 3 giây');
+      $('buzNote').textContent = 'Đã gửi lệnh, chờ thiết bị trả lời…';
+      return;
+    }
+    act.buzUntil = performance.now() + 3000;
+    $('buzNote').textContent = 'Còi kêu thử 3 giây (mô phỏng).';
+  });
   /* thử quạt riêng: lệnh {"fan_test":pct,"duration":10} (firmware 1.4.0+), 0 là dừng */
   const FAN_TEST_S = 10;
   $('fanTest').addEventListener('click', e => {
@@ -596,7 +608,7 @@ body { margin: 0; }
   /* ======================= thiết bị thật qua MQTT (WebSocket) ======================= */
   /* Hợp đồng lệnh với firmware:
      airgas/<dev>/cmd   {"sim":"gas"|"air"|"off","duration":60,"discord":true,"actuators":true}
-                        {"valve":"open"|"close"} · {"fan_test":0..100,"duration":10} · {"recalibrate":true}
+                        {"valve":"open"|"close"} · {"fan_test":0..100,"duration":10} · {"buzzer_test":0..10} · {"recalibrate":true}
                         {"wifi":{"ssid":"...","pass":"..."}} · {"broker":"mqtt://ip:1883"}
                         {"discord_webhook":"https://discord.com/api/webhooks/..."}
      airgas/<dev>/ack   {"cmd":"valve","ok":true,"msg":"opened"}
@@ -670,6 +682,9 @@ body { margin: 0; }
       live.info = j;
     } else if (kind === 'ack' && j) {
       $('cmdNote').textContent = (j.ok ? 'Thiết bị đã nhận lệnh ' : 'Thiết bị từ chối lệnh ') + (j.cmd || '') + (j.msg ? ': ' + j.msg : '');
+      if (j.cmd === 'buzzer_test') {
+        $('buzNote').textContent = j.ok ? 'Thiết bị: ' + (j.msg || '') : 'Thiết bị từ chối: ' + (j.msg || '');
+      }
       if (j.cmd === 'fan_test') {
         $('fanNote').textContent = j.ok ? 'Thiết bị đang thử quạt: ' + (j.msg || '') : 'Thiết bị từ chối: ' + (j.msg || '');
       } else if (j.cmd === 'unknown' || (j.cmd === '?' && /unknown/.test(j.msg || ''))) {
@@ -1642,6 +1657,7 @@ body { margin: 0; }
     let cmdOn = false, buzzMode = 'Im';
     if (alarm) { cmdOn = (now % 300) < 150; buzzMode = 'Bíp nhanh'; }
     else if (poor) { cmdOn = (now % 2000) < 200; buzzMode = 'Bíp chậm'; }
+    else if (!isLive && now < act.buzUntil) { cmdOn = (now % 300) < 150; buzzMode = 'Bíp thử'; }
     const audible = cmdOn && state.buz === 'ok';
     const ledOn = alarm || poor;
     const online = isLive ? (live.status === 'online' && liveFresh()) : t > 3.5;

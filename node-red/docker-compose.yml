@@ -27,6 +27,8 @@ services:
       - TZ=Asia/Ho_Chi_Minh
       # Discord alerts from the "2. Luồng khẩn cấp" flow; set it in node-red/.env
       - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
+      # Báo Hermes Agent khi có cảnh báo (node "Báo Hermes Agent"); trùng WEBHOOK_SECRET của Hermes
+      - HERMES_WEBHOOK_SECRET=${HERMES_WEBHOOK_SECRET:-}
 
   homeassistant:
     image: ghcr.io/home-assistant/home-assistant:stable
@@ -39,6 +41,39 @@ services:
     volumes:
       - ./homeassistant/config:/config
     environment:
+      - TZ=Asia/Ho_Chi_Minh
+
+  # MCP server: AI đọc và điều khiển trạm gas qua Home Assistant (ai-agent/airgas_mcp.py).
+  # Bot dùng nó qua mạng Docker. Cổng 8001 chỉ mở trên máy này để thử bằng tay.
+  airgas-mcp:
+    build:
+      context: ../ai-agent
+      dockerfile: Dockerfile.mcp
+    image: airgas-mcp:latest
+    container_name: airgas-mcp
+    restart: unless-stopped
+    depends_on:
+      - homeassistant
+    env_file: ../ai-agent/.env
+    environment:
+      - HA_URL=http://homeassistant:8123
+      - TZ=Asia/Ho_Chi_Minh
+    ports:
+      - "127.0.0.1:8001:8000"
+
+  # Bot Discord hỏi đáp, dùng LLM tương thích OpenAI và MCP server ở trên (ai-agent/discord_bot.py).
+  airgas-bot:
+    build:
+      context: ../ai-agent
+      dockerfile: Dockerfile.bot
+    image: airgas-bot:latest
+    container_name: airgas-bot
+    restart: unless-stopped
+    depends_on:
+      - airgas-mcp
+    env_file: ../ai-agent/.env
+    environment:
+      - MCP_URL=http://airgas-mcp:8000/mcp
       - TZ=Asia/Ho_Chi_Minh
 
 volumes:
