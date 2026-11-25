@@ -1,357 +1,260 @@
 # Air Gas Monitor
 
-Thiết bị giám sát khí gas dùng ESP32 (ESP-IDF): đọc điện áp từ một cảm biến khí gas dạng
-analog, so với ngưỡng cấu hình, và gửi cảnh báo qua Discord webhook khi phát hiện vượt
-ngưỡng.
+Trạm giám sát khí gas và chất lượng không khí dùng ESP32 (ESP-IDF v5.5.x). Hai cảm biến MQ đo
+nồng độ, firmware tự khóa van gas, bật quạt hút và còi khi vượt ngưỡng, đồng thời gửi dữ liệu
+qua MQTT lên Node-RED, Home Assistant và Discord. Có thêm AI agent (MCP + bot Discord) để hỏi
+đáp và điều khiển từ xa.
+
+> Mô hình học tập (đồ án IoT, nhóm 12, đề tài 4). Không thay thế thiết bị báo gas đạt chuẩn PCCC.
+
+Tài liệu liên quan: [HUONG_DAN.md](HUONG_DAN.md) (lắp ráp và chạy từng bước),
+[ai-agent/README.md](ai-agent/README.md) (MCP server và bot Discord), [CLAUDE.md](CLAUDE.md)
+(ghi chú kiến trúc cho trợ lý lập trình).
+
+## Kiến trúc 4 tầng
+
+```
+Sensing        MQ-2, MQ-135 → ESP32 → servo van, quạt, còi, LED
+Network        Wi-Fi 2.4 GHz → MQTT (Mosquitto)
+Middleware     Node-RED (gộp trạng thái, phát hiện sự kiện, chống spam, log CSV, HA discovery)
+Application    Dashboard HTML 3D · Node-RED Dashboard · Home Assistant · Discord · AI agent
+```
+
+Lệnh điều khiển đi ngược lại: ứng dụng → MQTT `cmd` → ESP32 → cơ cấu chấp hành, ESP32 trả `ack`.
+Cảnh báo tại chỗ (LED, còi, quạt, van) chạy ngay trên ESP32, không phụ thuộc Wi-Fi hay Internet.
 
 ## Tính năng
 
-- Đọc điện áp cảm biến qua ADC1 (mặc định GPIO36 / ADC1_CH0), có hiệu chuẩn ADC.
-- **Ước tính nồng độ LPG (ppm)** từ đường cong Rs/Ro trong datasheet MQ-2, có tự hiệu
-  chuẩn Ro (lưu vào NVS, chỉ chạy 1 lần ở lần boot đầu). So ngưỡng cảnh báo theo ppm thay
-  vì mV thô.
-- **Cảm biến chất lượng không khí MQ-135** (độc lập với MQ-2 ở trên) — ước tính CO2 tương
-  đương (ppm), publish riêng, dùng chung cơ chế hiệu chuẩn Ro/NVS.
-- Kết nối Wi-Fi (chỉ 2.4GHz), tự kết nối lại nếu bị rớt sóng.
-- Gửi cảnh báo tới kênh Discord qua webhook khi vượt ngưỡng, có cooldown giữa các lần gửi
-  để tránh spam.
-- **Đèn LED cảnh báo cục bộ**: sáng ngay khi vượt ngưỡng, hoạt động độc lập với Wi-Fi/
-  Discord — giám sát cảm biến và bật đèn không phụ thuộc việc có mạng hay không, đảm bảo
-  vẫn cảnh báo được tại chỗ khi mất Internet.
-- **Publish dữ liệu qua MQTT** tới broker (ví dụ Mosquitto) để tích hợp Node-RED/Home
-  Assistant/dashboard riêng — gửi định kỳ mọi lần đọc (`airgas/<device>/reading`) và
-  riêng khi có cảnh báo (`airgas/<device>/alarm`).
-- Log trạng thái liên tục qua serial (mức OK / cảnh báo).
+- Đọc MQ-2 (LPG ước tính, ppm) và MQ-135 (CO₂ tương đương, ppm) qua ADC1, có tự hiệu chuẩn Ro (lưu NVS).
+- Phát hiện cảm biến mất nguồn (điện áp dưới 300 mV): đặt cờ `fault`, firmware vào chế độ an toàn
+  (khóa van, quạt 100 %) thay vì coi là không khí sạch.
+- Khi rò gas: LED, còi bíp nhanh, quạt 100 % (chạy thêm 60 s sau khi hết), servo khóa van. Van chốt
+  ở trạng thái khóa, chỉ mở lại bằng lệnh `open` và bị từ chối khi đang báo động.
+- Không khí kém: LED, còi bíp chậm, quạt theo `GAS_FAN_POOR_PERCENT` (mặc định 60 %).
+- Gửi cảnh báo Discord trực tiếp từ ESP32 qua webhook, có cooldown (mặc định 60 s).
+- Publish MQTT, nhận lệnh từ xa (khóa/mở van, thử quạt, thử còi, giả lập, hiệu chuẩn lại, đổi
+  Wi-Fi, broker, webhook). Đổi Wi-Fi mới có chế độ thử 60 s, không kết nối được thì tự quay về mạng cũ.
+- Giả lập rò gas hoặc không khí kém bằng lệnh MQTT, để kiểm thử mà không cần xả gas.
 
 ## Phần cứng
 
-- Board ESP32 (đã build/test trên ESP32 dòng gốc, ESP-IDF v5.5.5).
-- Cảm biến khí gas MQ-2 (phát hiện rò gas), module ra chân `AOUT` dạng analog 0–5V.
-- Cảm biến chất lượng không khí MQ-135 (CO2 tương đương), cùng dạng module `AOUT` 0–5V.
-- Nguồn 5V cho cả 2 cảm biến (module MQ-x cần 5V để đốt nóng dây may-so bên trong, cấp
-  3.3V sẽ không đủ để cảm biến hoạt động chính xác).
-- 1 LED cảnh báo (LED rời + điện trở hạn dòng ~220–330Ω, hoặc dùng LED onboard có sẵn
-  trên board DevKit nếu có).
-
-### Sơ đồ kết nối (ESP32 ⟷ MQ-2 + MQ-135)
-
-| Cảm biến MQ-2 (gas leak) | ESP32 | Ghi chú |
+| Linh kiện | Chân ESP32 | Ghi chú |
 |---|---|---|
-| `VCC` | `5V` (chân VIN/5V trên board) | Cấp nguồn cho bộ đốt của cảm biến |
-| `GND` | `GND` | Nối đất chung |
-| `AOUT` | `GPIO36` (ADC1_CH0, mặc định) | Tín hiệu analog, đổi được qua menuconfig |
-| `DOUT` | không dùng | Firmware chỉ đọc ngưỡng qua ADC (`AOUT`), không dùng ngưỡng phần cứng trên `DOUT` |
+| MQ-2 (gas), AOUT | `D35` (GPIO35, ADC1 CH7) | qua cầu chia áp 10 kΩ/10 kΩ |
+| MQ-135 (không khí), AOUT | `D34` (GPIO34, ADC1 CH6) | qua cầu chia áp 10 kΩ/10 kΩ |
+| Còi buzzer, chân + | `D4` (GPIO4) | chân − nối thanh GND |
+| Quạt DC 5 V qua module MOSFET D4184 | `D18` (GPIO18) | PWM 500 Hz |
+| Servo MG90S (van gas), tín hiệu | `D13` (GPIO13) | mở 0°, đóng 90° |
+| LED cảnh báo | `GPIO2` | LED onboard |
 
-| Cảm biến MQ-135 (air quality) | ESP32 | Ghi chú |
-|---|---|---|
-| `VCC` | `5V` | Chung nguồn 5V với MQ-2 (đảm bảo nguồn đủ dòng cho cả 2 bộ đốt) |
-| `GND` | `GND` | Nối đất chung |
-| `AOUT` | `GPIO39` (ADC1_CH3, mặc định) | Tín hiệu analog, đổi được qua menuconfig (`AQ_ADC_PIN`/`AQ_ADC_CHANNEL`) |
-| `DOUT` | không dùng | |
+- **Nguồn:** adapter 5 V riêng cấp cho 2 cảm biến, quạt và servo (qua jack DC ra thanh nguồn
+  breadboard). ESP32 chạy bằng cáp USB, **để trống chân VIN và 3V3**, nối GND ESP32 với thanh GND
+  chung. Cấp cảm biến từ chân VIN của ESP32 từng gây brownout lặp.
+- **Chia áp:** AOUT của module MQ ra tới 5 V, trong khi ADC ESP32 chỉ chịu 3,3 V. Hai điện trở 10 kΩ/10 kΩ
+  chia đôi điện áp nên `GAS_ADC_DIVIDER_PERCENT` và `AQ_ADC_DIVIDER_PERCENT` đặt 50.
+- Chân 34 và 35 chỉ có chế độ input, tránh GPIO0, 2, 12, 15 cho tín hiệu khác (chân cấu hình lúc khởi động).
+- MQ-x nóng khi chạy và cần làm nóng 24 đến 48 giờ lần đầu để số liệu ổn định.
+- Mô hình 3D của bố cục dây nằm trong `dashboard/air_gas_live.html` (bảng “Chân nối” cho biết dây
+  đang cắm và chân firmware đọc).
 
-⚠️ 2 cảm biến dùng chung nguồn 5V — kiểm tra bộ nguồn/cổng USB cấp đủ dòng (mỗi MQ-x
-tiêu thụ ~150mA khi đốt nóng, tổng ~300mA cho cả 2, cộng thêm ESP32). Nếu dùng chung cổng
-USB máy tính để cấp nguồn khi test, một số cổng yếu dòng có thể không đủ — nên dùng
-adapter 5V/1A trở lên khi chạy thật.
+Chân và hệ số chia áp thật nằm trong `sdkconfig` (35/34, 50 %). Giá trị mặc định trong
+`main/Kconfig.projbuild` (36/39, 100 %) chỉ là mặc định khi tạo cấu hình mới.
 
-| LED cảnh báo | ESP32 | Ghi chú |
-|---|---|---|
-| Chân dương (qua điện trở ~220–330Ω) | `GPIO2` (mặc định) | Đổi được qua menuconfig (`GAS_LED_GPIO`) |
-| Chân âm | `GND` | |
+## Cấu trúc thư mục
 
-Nếu board có sẵn LED onboard nối vào GPIO2 (phổ biến trên nhiều board ESP32 DevKit), có
-thể để mặc định và không cần lắp LED rời — chỉ cần đổi `GAS_LED_GPIO` nếu board bạn dùng
-chân khác.
-
-```
-   MQ-x sensor                 ESP32                  LED cảnh báo
-  ┌───────────┐              ┌──────────┐            ┌─────┐
-  │       VCC ├──────────────┤ 5V       │            │ LED │
-  │       GND ├──────────────┤ GND      ├────────────┤  -  │
-  │      AOUT ├──────────────┤ GPIO36   │      ┌──────┤  +  │
-  │      DOUT │ (không nối)  │   GPIO2  ├──[R]─┘      └─────┘
-  └───────────┘              └──────────┘
-```
-
-⚠️ **Lưu ý an toàn:**
-- Đầu ra `AOUT` của module MQ-x thường đã có sẵn cầu phân áp trên board, cho ra 0–5V —
-  vẫn cao hơn mức 3.3V mà chân ADC ESP32 chịu được. Kiểm tra thông số module bạn dùng;
-  nếu output có thể vượt 3.3V, cần thêm cầu phân áp bằng 2 điện trở (ví dụ 10kΩ/20kΩ)
-  hoặc module chia áp trước khi đưa vào GPIO36, tránh làm hỏng chân ADC.
-- Không cấp 5V trực tiếp vào bất kỳ chân GPIO nào của ESP32 (chỉ cấp vào chân `5V`/`VIN`).
-- Cảm biến MQ-x cần thời gian làm nóng (preheat) 24–48 giờ lần đầu và vài phút mỗi lần
-  bật nguồn để cho số liệu ổn định; giá trị đọc được trong vài phút đầu có thể không
-  chính xác.
-- Nếu board ESP32 của bạn không có chân `5V` riêng (một số board mini chỉ có 3.3V ra),
-  cần dùng nguồn 5V ngoài (qua mạch nạp USB hoặc adapter) cấp riêng cho cảm biến, chung
-  GND với ESP32.
-
-## Cấu trúc source
-
-| File | Vai trò |
+| Đường dẫn | Vai trò |
 |---|---|
-| `main/gas_main.c` | Vòng lặp chính: đọc cảm biến, kiểm tra ngưỡng, điều phối cooldown |
-| `main/gas_sensor.c/.h` | Cảm biến MQ-2 (gas leak): khởi tạo ADC1 dùng chung + hiệu chuẩn/đọc ppm LPG |
-| `main/air_sensor.c/.h` | Cảm biến MQ-135 (air quality): đọc kênh ADC1 riêng, hiệu chuẩn/đọc CO2-tương đương |
-| `main/gas_network.c/.h` | Kết nối Wi-Fi STA, tự reconnect khi rớt sóng |
-| `main/gas_discord.c/.h` | Gửi cảnh báo qua Discord webhook (HTTP POST JSON) |
-| `main/gas_led.c/.h` | Điều khiển đèn LED cảnh báo cục bộ qua GPIO |
-| `main/gas_mqtt.c/.h` | Publish dữ liệu cảm biến/cảnh báo lên MQTT broker |
-| `main/Kconfig.projbuild` | Các tùy chọn cấu hình qua `idf.py menuconfig` |
+| `main/gas_main.c` | Vòng lặp chính: đọc cảm biến, so ngưỡng, điều khiển van, quạt, còi, LED, gửi MQTT và Discord |
+| `main/gas_sensor.c`, `air_sensor.c` | MQ-2 (LPG) và MQ-135 (CO₂ tương đương): ADC, Rs/Ro, hiệu chuẩn, cờ `fault` |
+| `main/gas_control.c/.h` | Phân tích lệnh JSON trên topic `cmd` (schema ghi trong `gas_control.h`). Chỉ lưu yêu cầu, vòng lặp chính mới thao tác cơ cấu |
+| `main/gas_mqtt.c` | Publish `reading`, `alarm`, `status`, `info`, `ack`; nhận `cmd` |
+| `main/gas_config.c` | Wi-Fi, broker, webhook lưu NVS, ghi đè giá trị Kconfig; cơ chế thử Wi-Fi mới |
+| `main/gas_valve.c`, `gas_fan.c`, `gas_buzzer.c`, `gas_led.c` | Servo van, quạt PWM, còi, LED |
+| `main/gas_network.c`, `gas_discord.c` | Wi-Fi STA tự kết nối lại; gửi Discord webhook |
+| `node-red/` | Docker Compose (Mosquitto, Node-RED, Home Assistant, airgas-mcp, airgas-bot) và `flows.json` |
+| `ai-agent/` | MCP server `airgas`, agent LLM, bot Discord |
+| `dashboard/air_gas_live.html` | Trang HTML độc lập: mô hình 3D, giả lập, kết nối MQTT WebSocket |
+| `diagram.json`, `wokwi.toml`, `sdkconfig.wokwi` | Mô phỏng Wokwi |
 
-## Cấu hình
+## Build và nạp firmware
+
+Firmware hiện tại: **1.5.0** (`GAS_FW_VERSION` trong `main/gas_control.h`).
+
+Cấu hình (Wi-Fi, webhook, ngưỡng) qua `idf.py menuconfig`, mục **Gas Monitor**. Các tùy chọn chính:
+
+| Tùy chọn | Mặc định | Ý nghĩa |
+|---|---|---|
+| `GAS_WIFI_SSID`, `GAS_WIFI_PASSWORD` | trống | Wi-Fi 2.4 GHz |
+| `GAS_DISCORD_WEBHOOK` | trống | Webhook Discord, trống thì tắt cảnh báo Discord |
+| `GAS_MQTT_BROKER_URI` | `mqtt://172.16.20.130:1883` | Địa chỉ broker, dùng IP LAN của máy chạy Docker, không dùng `localhost` |
+| `GAS_DEVICE_NAME` | `Gas-Monitor-01` | Tên thiết bị, nằm trong tên topic |
+| `GAS_THRESHOLD_PPM` | 1000 | Ngưỡng LPG |
+| `AQ_THRESHOLD_PPM` | 1500 | Ngưỡng không khí kém (CO₂eq) |
+| `GAS_ADC_PIN`, `AQ_ADC_PIN` | 36, 39 (`sdkconfig` đặt 35, 34) | Chân AOUT của MQ-2, MQ-135 |
+| `GAS_ADC_DIVIDER_PERCENT`, `AQ_ADC_DIVIDER_PERCENT` | 100 (`sdkconfig` đặt 50) | Phần trăm điện áp còn lại sau chia áp |
+| `GAS_SENSOR_VCC_MV`, `GAS_LOAD_RESISTOR_OHM` | 5000, 5000 | Thông số mạch MQ-2 (MQ-135 dùng RL 20000) |
+| `GAS_CHECK_PERIOD_MS`, `GAS_ALARM_COOLDOWN_S` | 1000, 60 | Chu kỳ đọc, cooldown giữa hai lần gửi Discord |
+| `GAS_LED_GPIO`, `GAS_BUZZER_GPIO`, `GAS_FAN_GPIO`, `GAS_VALVE_GPIO` | 2, 4, 18, 13 | Chân LED, còi, quạt, servo |
+| `GAS_FAN_POOR_PERCENT`, `GAS_FAN_RUNON_S` | 60, 60 | Tốc độ quạt khi không khí kém, thời gian chạy thêm sau rò gas |
+| `GAS_VALVE_OPEN_DEG`, `GAS_VALVE_CLOSED_DEG` | 0, 90 | Góc servo mở và đóng van |
+
+Build và nạp (PowerShell, ESP-IDF ở `D:\Program\Espressif`, board DOIT DevKit V1 trên COM7):
+
+```powershell
+$env:IDF_TOOLS_PATH='D:\Program\Espressif'
+cmd /c 'call D:\Program\Espressif\frameworks\esp-idf-v5.5.5\export.bat && idf.py set-target esp32 && idf.py build && idf.py -p COM7 flash monitor'
+```
+
+`sdkconfig` cục bộ chứa mật khẩu Wi-Fi và webhook Discord thật. **Xóa hai giá trị này trước khi commit.**
+Firmware gần như không in log sau khi khởi động, nên Serial im lặng là bình thường.
+
+### Mô phỏng Wokwi
 
 ```
-idf.py menuconfig
+idf.py -B build_wokwi -D SDKCONFIG=build_wokwi/sdkconfig -D "SDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.wokwi" build
 ```
 
-Vào mục **Gas Monitor** và điền:
+Sau đó chạy “Wokwi: Start Simulator” trong VS Code. ESP32 mô phỏng gặp broker trên máy tính qua
+`host.wokwi.internal`.
 
-- **Wi-Fi SSID / Wi-Fi password**: thông tin mạng Wi-Fi 2.4GHz.
-- **Discord webhook URL**: dạng `https://discord.com/api/webhooks/...`.
-- **MQ-2 sensor supply voltage VCC (mV)**: điện áp cấp cho cảm biến (mặc định 5000mV —
-  giữ đúng 5V theo datasheet, cấp 3.3V sẽ làm sai lệch ước tính ppm).
-- **MQ-2 module load resistor RL (ohm)**: giá trị điện trở tải trên module (mặc định
-  5000Ω, phổ biến trên các module giá rẻ — kiểm tra lại board của bạn nếu có ghi chú).
-- **AOUT voltage divider ratio (%)**: nếu bạn có thêm cầu phân áp trước khi vào GPIO36,
-  nhập % điện áp thực tế còn lại tới chân ADC (mặc định 100 = nối thẳng không qua chia
-  áp). Cần đúng giá trị này để tính ngược lại điện áp AOUT thật.
-- **Gas alarm threshold (ppm)**: ngưỡng cảnh báo theo nồng độ LPG ước tính (mặc định
-  1000ppm — xem lưu ý độ chính xác bên dưới).
-- **Sensor check period (ms)**: chu kỳ đọc cảm biến (mặc định 1000ms).
-- **Cooldown between alarm sends (s)**: thời gian chờ tối thiểu giữa 2 lần gửi Discord
-  (mặc định 60s).
-- **Device name**: tên hiển thị trong tin nhắn Discord.
-- **Alarm LED GPIO pin**: chân GPIO điều khiển đèn cảnh báo (mặc định GPIO2).
-- **MQTT broker URI**: địa chỉ broker MQTT dạng `mqtt://<IP-LAN-máy-chủ>:1883`. Để trống
-  sẽ tắt tính năng publish MQTT (áp dụng cho cả MQ-2 lẫn MQ-135).
-- **MQ-135 Air Quality Sensor** (menu con riêng):
-  - **Enable MQ-135 air quality sensor**: bật/tắt cảm biến thứ 2 (mặc định bật).
-  - **MQ-135 ADC pin / ADC channel**: chân đọc AOUT (mặc định GPIO39 / ADC1_CH3).
-  - **MQ-135 sensor supply voltage VCC / load resistor RL / voltage divider ratio**:
-    tương tự các tham số MQ-2, dùng để tính Rs chính xác cho MQ-135.
-  - **Poor air quality threshold (ppm)**: ngưỡng cảnh báo chất lượng không khí kém, theo
-    CO2 tương đương (mặc định 1500ppm).
+## Ước tính ppm và hiệu chuẩn
 
-Lưu (phím `S`) rồi thoát (`Q`).
+MQ không xuất ppm trực tiếp mà đổi điện trở Rs theo nồng độ. Firmware tính:
 
-## Ước tính ppm từ MQ-2 — cách hoạt động và độ chính xác
+1. Đọc điện áp AOUT qua ADC (đã bù chia áp), giới hạn 3300 mV.
+2. `Rs = RL * (VCC - Vout) / Vout`.
+3. Ro lấy lúc hiệu chuẩn (trung bình 50 mẫu trong 5 giây), lưu NVS.
+4. MQ-2 (LPG): `ppm = 574.25 * (Rs/Ro)^-2.222`, với `Ro = Rs / 9.83` trong không khí sạch.
+   MQ-135 (CO₂eq): `ppm = 116.6 * (Rs/Ro)^-2.769`, hiệu chuẩn lấy mốc 400 ppm CO₂ nền.
 
-MQ-2 không xuất ra % khí trực tiếp — nó là cảm biến bán dẫn có **điện trở Rs thay đổi
-theo nồng độ khí**, không tuyến tính. Firmware quy đổi theo các bước:
+Hiệu chuẩn tự chạy một lần ở lần khởi động đầu. Muốn hiệu chuẩn lại: gửi `{"recalibrate":true}`
+(nút “Hiệu chuẩn cảm biến” trong Home Assistant hoặc `control_device`), làm khi không khí sạch.
+Chỉ dùng `idf.py erase-flash` khi cần xóa luôn Wi-Fi, broker và webhook đã lưu.
 
-1. **Đọc điện áp AOUT** qua ADC (có bù cầu phân áp nếu bạn cấu hình
-   `GAS_ADC_DIVIDER_PERCENT` khác 100).
-2. **Tính Rs** theo mạch phân áp trên module: `Rs = RL * (VCC - Vout) / Vout`.
-3. **Hiệu chuẩn Ro** (điện trở cảm biến trong không khí sạch chuẩn) — thực hiện **tự
-   động 1 lần duy nhất** ở lần boot đầu tiên: lấy trung bình 50 mẫu trong 5 giây, giả định
-   không khí lúc đó sạch (không có gas), rồi `Ro = Rs_trung_bình / 9.83` (hằng số
-   `Rs/Ro` trong không khí sạch, theo datasheet MQ-2). Giá trị Ro được lưu vào NVS, các
-   lần khởi động sau sẽ đọc lại, không hiệu chuẩn lại nữa.
-4. **Quy đổi ppm (LPG)** theo công thức hồi quy từ đường cong datasheet:
-   `ppm = 574.25 * (Rs/Ro) ^ -2.222`.
+Đây là ước tính, không phải phép đo chuẩn: chỉ tính LPG, sai số lớn của MQ giá rẻ, phụ thuộc vào
+việc lúc hiệu chuẩn có thật sự là không khí sạch. MQ-135 phản ứng yếu với mùi nhẹ, nếu muốn nhạy hơn
+cần làm nóng vài chục giờ rồi hiệu chuẩn lại, hoặc hạ `AQ_THRESHOLD_PPM`.
 
-⚠️ **Đây là ước tính, không phải phép đo chuẩn hóa:**
-- Chỉ tính cho khí **LPG** — nếu bạn muốn phát hiện khí khác (CO, khói, methane...), cần
-  đường cong hệ số khác (a, b khác trong công thức trên), hiện code chưa hỗ trợ chọn loại
-  khí.
-- Độ chính xác phụ thuộc hoàn toàn vào **thời điểm hiệu chuẩn Ro có đúng là không khí
-  sạch hay không** — nếu lần boot đầu tiên vô tình có mùi gas nhẹ trong phòng, Ro sẽ bị
-  lệch và mọi ppm tính sau đó đều sai theo.
-- Cảm biến MQ-x giá rẻ vốn có sai số lớn (có thể lệch vài chục %), bị ảnh hưởng bởi nhiệt
-  độ/độ ẩm, và cần thời gian làm nóng dài (xem mục an toàn phần cứng). **Không dùng số
-  ppm này làm căn cứ an toàn cháy nổ chính thức** (không thay thế thiết bị báo gas đạt
-  chuẩn PCCC) — chỉ nên coi là cảnh báo sớm mang tính tham khảo.
-- Muốn buộc hiệu chuẩn lại (ví dụ nghi Ro bị lệch, hoặc đổi cảm biến khác): xóa namespace
-  NVS `gas_cal`, đơn giản nhất là erase toàn bộ flash rồi flash lại:
-  ```
-  idf.py erase-flash
-  idf.py flash
-  ```
-  Nhớ đảm bảo không khí xung quanh cảm biến thực sự sạch trong 5 giây đầu sau khi cấp
-  nguồn.
+## MQTT
 
-Cảm biến MQ-135 (air quality) dùng **cùng cơ chế** (đọc AOUT → tính Rs → hiệu chuẩn Ro
-lưu NVS namespace riêng `aq_cal` → quy ra CO2 tương đương qua công thức
-`ppm = 116.6 * (Rs/Ro) ^ -2.769`), chỉ khác ở điểm mốc hiệu chuẩn: vì không khí thường
-(kể cả ngoài trời) luôn có sẵn CO2 nền ~400ppm chứ không phải 0, nên lần boot đầu firmware
-giả định môi trường đang ở mức nền 400ppm (không khí thoáng bình thường) thay vì "sạch
-tuyệt đối" như MQ-2. Muốn hiệu chuẩn lại MQ-135 độc lập với MQ-2: cũng dùng
-`idf.py erase-flash && idf.py flash` (erase-flash xóa cả 2 namespace `gas_cal` và
-`aq_cal` cùng lúc, không tách được).
+`<device>` là `GAS_DEVICE_NAME`. Broker Mosquitto cổng 1883 (và 9001 cho WebSocket), cho phép ẩn danh.
 
-## Node-RED + MQTT broker (docker)
+| Topic | Hướng | Payload | QoS / retained |
+|---|---|---|---|
+| `airgas/<device>/reading` | ESP32 → broker | `{"ppm":4,"mv":1900,"threshold":1000,"alarm":false,"sim":false,"fault":false}` | 0 |
+| `airquality/<device>/reading` | ESP32 → broker | `{"co2_ppm":400,"mv":1930,"threshold":1500,"poor":false,"sim":false,"fault":false}` | 0 |
+| `airgas/<device>/alarm` | ESP32 → broker | `{"ppm":1600,"mv":1950,"threshold":1000,"device":"..."}` | 1 |
+| `airgas/<device>/status` | ESP32 → broker | `online` hoặc `offline` (LWT, dạng chữ) | 1, retained |
+| `airgas/<device>/info` | ESP32 → broker | `{"fw":"1.5.0","ip":"...","rssi":-56,"ssid":"...","sim":"off","valve":"open","fan":0}` | 1, retained |
+| `airgas/<device>/ack` | ESP32 → broker | `{"cmd":"valve","ok":true,"msg":"closed"}` | 1 |
+| `airgas/<device>/cmd` | broker → ESP32 | lệnh JSON, xem bên dưới | |
 
-Repo có sẵn stack Docker riêng ở [`node-red/`](node-red/) chạy **Mosquitto** (MQTT
-broker, port 1883), **Node-RED** (port 1880), và **Home Assistant** (port 8123):
+Lệnh gửi lên `cmd` (chi tiết trong `main/gas_control.h`):
+
+```json
+{"sim":"gas","duration":60,"discord":true,"actuators":true}   // "gas" | "air" | "off"
+{"valve":"open"}  {"valve":"close"}                           // mở bị từ chối khi đang báo động
+{"fan_test":60,"duration":10}                                 // quạt 0-100 %, 5-60 s, báo động gas vẫn ưu tiên
+{"buzzer_test":3}                                             // còi 1-10 s, 0 là dừng
+{"recalibrate":true}
+{"wifi":{"ssid":"...","pass":"..."}}  {"broker":"mqtt://<ip>:1883"}  {"discord_webhook":"https://..."}
+```
+
+Khi giả lập rò gas, còi vẫn kêu theo trạng thái báo động kể cả `"actuators":false`.
+
+## Docker: Mosquitto, Node-RED, Home Assistant, AI agent
 
 ```
 cd node-red
 docker compose up -d
 ```
 
-- Node-RED UI: http://localhost:1880
-- Flow "Air Gas MQTT" đã có sẵn 2 node `mqtt in` subscribe `airgas/+/reading` và
-  `airgas/+/alarm`, nối tới debug hiển thị trong sidebar Node-RED, và tới dashboard trực
-  quan bên dưới.
-- ESP32 publish tới broker này qua **địa chỉ IP LAN của máy chạy Docker**, không dùng
-  `localhost` (vì ESP32 là thiết bị khác trên mạng). Đặt đúng IP đó vào **MQTT broker
-  URI** ở menuconfig, ví dụ `mqtt://172.16.20.130:1883` — IP có thể đổi nếu máy dùng
-  DHCP, kiểm tra lại bằng `ipconfig` nếu ESP32 báo không kết nối được broker.
-- ESP32 và máy chạy Docker phải cùng mạng LAN (ESP32 nối Wi-Fi tới cùng router).
+Giữ nguyên tên project compose (`name: node-red`), nếu đổi thì mất các volume dữ liệu.
 
-### Dashboard trực quan
+| Service | Cổng | Việc |
+|---|---|---|
+| `mosquitto` | 1883, 9001 | MQTT broker (TCP và WebSocket) |
+| `node-red` | 1880 | Flow xử lý và dashboard |
+| `homeassistant` | 8123 | Giao diện giám sát, tạo thực thể bằng MQTT discovery |
+| `airgas-mcp` | `127.0.0.1:8001` | MCP server (streamable HTTP, bắt buộc `MCP_AUTH_TOKEN`) |
+| `airgas-bot` | không mở | Bot Discord hỏi đáp |
 
-Đã cài sẵn **Node-RED Dashboard 2.0** (`@flowfuse/node-red-dashboard`) trong container.
-Dashboard có **2 tab riêng trong sidebar điều hướng**:
+Biến môi trường: `node-red/.env` (`HERMES_WEBHOOK_SECRET`, `DISCORD_WEBHOOK_URL` tuỳ chọn) và
+`ai-agent/.env` (xem `ai-agent/.env.example`). Hai file này không được commit.
 
-**Tab "Gas Monitor"** — http://localhost:1880/dashboard/gas
-- Group "Trạng thái hiện tại": gauge ppm (kim đồng hồ, tô màu xanh/vàng/đỏ quanh ngưỡng),
-  badge trạng thái (nền đỏ "GAS ALARM" / nền xanh "OK"), dòng "Cập nhật lúc..." (biết
-  ngay nếu dữ liệu bị đứng), badge Online/Offline của thiết bị (dựa trên MQTT
-  status + Last Will).
-- Group "Lịch sử": biểu đồ đường ppm theo thời gian, full-width, tự xóa dữ liệu cũ hơn
-  1 giờ.
+ESP32 và máy chạy Docker phải cùng mạng. Địa chỉ broker trong firmware là IP LAN của máy chạy Docker
+(đổi bằng lệnh `{"broker":"..."}` hoặc menuconfig). Nếu IP đổi, thiết bị sẽ hiện offline.
 
-**Tab "Air Quality"** — http://localhost:1880/dashboard/air-quality
-- Bố cục tương tự: gauge CO2-tương đương (ppm), badge "KHÔNG KHÍ TỐT"/"KHÔNG KHÍ KÉM",
-  timestamp cập nhật, biểu đồ lịch sử riêng.
+### Node-RED (`node-red/flows.json`)
 
-Truy cập trang chủ dashboard tại http://localhost:1880/dashboard sẽ thấy menu điều hướng
-để chuyển giữa 2 tab.
+Flow có 4 tab:
 
-Nếu cần cài lại package dashboard sau khi xóa volume `node_red_data`, chạy:
+1. **Luồng giám sát:** nhận `reading`, `info`, `status`, `ack`, gộp thành một trạng thái, phát hiện chuyển trạng thái và sinh sự kiện
+   `danger`, `safe`, `poor`, `fault`, `offline`, `valve`, mỗi sự kiện kèm một dòng thông báo tiếng Việt.
+2. **Luồng khẩn cấp:** chống spam 30 s, soạn tin Discord, báo Hermes Agent qua webhook ký HMAC
+   (`host.docker.internal:8644`), ghi log `alerts.csv`.
+3. **Dashboard và xác nhận:** trang Node-RED Dashboard 2.0 tại `http://localhost:1880/dashboard/gas`
+   (thẻ trạng thái, gauge LPG và CO₂eq, biểu đồ 1 giờ, nút mở/khóa van, giả lập rò gas, giả lập không khí kém, tắt giả lập).
+4. **Home Assistant và log:** phát MQTT discovery và ghi `airgas.csv` mỗi 10 s.
+
+Log CSV nằm trong volume Node-RED: `/data/logs/airgas.csv`, `/data/logs/alerts.csv`.
+Cần package dashboard (`@flowfuse/node-red-dashboard`), nếu mất volume thì cài lại:
+
 ```
 docker exec -w /data node-red npm install @flowfuse/node-red-dashboard
 docker restart node-red
 ```
 
+Triển khai flow đã sửa (Admin API có xác thực nên dùng `docker cp`):
+
+```
+docker cp node-red/flows.json node-red:/data/flows.json && docker restart node-red
+```
+
+Xuất flow đang chạy ra repo: `docker cp node-red:/data/flows.json node-red/flows.json`.
+
 ### Home Assistant
 
-Chạy như 1 lựa chọn giám sát **song song** với Node-RED Dashboard (không thay thế, cả 2
-đều đọc chung dữ liệu từ Mosquitto, dùng cái nào tùy bạn). Kiểu cài đặt: **Home Assistant
-Container** (chỉ HA Core chạy trong Docker, không phải "Home Assistant OS" — do đó
-**không có** Add-on Store, không tự OTA update toàn hệ thống; đổi lại nhẹ và chạy chung
-máy tính với các service khác trong cùng `docker-compose.yml`).
+Node-RED tạo thiết bị **“Trạm cảnh báo gas”** bằng MQTT discovery với các thực thể: Nồng độ gas, CO₂ tương đương,
+Mức cảnh báo (`BINH_THUONG`, `KHONG_KHI_KEM`, `NGUY_HIEM`, `LOI_CAM_BIEN`), Rò rỉ gas, Van gas, Quạt hút, Còi báo động,
+Phiên bản firmware, Sóng Wi-Fi, và các nút: Xác nhận an toàn (mở van), Khoá van, Thử quạt 10 giây, Thử còi 3 giây, Hiệu chuẩn cảm biến.
+`node-red/homeassistant/config/configuration.yaml` còn khai báo thêm vài entity MQTT tĩnh kiểu cũ (Gas ppm, Gas Alarm…), dùng song song.
 
-**Cấu hình đã có sẵn** trong `node-red/homeassistant/config/configuration.yaml` — khai
-báo 7 entity MQTT theo dạng YAML tĩnh (không cần MQTT Discovery từ firmware):
+Thiết lập lần đầu: mở `http://localhost:8123`, tạo tài khoản, thêm integration **MQTT** (host `mosquitto`, cổng `1883`).
+Tạo Long-lived access token cho AI agent ở hồ sơ người dùng, Security. Truy cập từ điện thoại bằng
+`http://<IP-LAN-máy-chủ>:8123` (mở cổng 8123 trên Windows Firewall nếu cần).
 
-| Entity | Nguồn | Loại |
-|---|---|---|
-| Gas ppm | `airgas/<device>/reading` → `ppm` | sensor |
-| Gas raw mV | `airgas/<device>/reading` → `mv` | sensor (diagnostic) |
-| Gas Alarm | `airgas/<device>/reading` → `alarm` | binary_sensor (gas) |
-| Air Quality CO2eq | `airquality/<device>/reading` → `co2_ppm` | sensor |
-| Air Quality raw mV | `airquality/<device>/reading` → `mv` | sensor (diagnostic) |
-| Poor Air Quality | `airquality/<device>/reading` → `poor` | binary_sensor (problem) |
-| Gas Monitor Device Online | `airgas/<device>/status` (MQTT LWT) | binary_sensor (connectivity) |
+### Dashboard HTML
 
-#### Setup lần đầu (thủ công, 1 lần)
+Mở `dashboard/air_gas_live.html` trực tiếp bằng trình duyệt. Có hai chế độ: “Mô phỏng trong trang”
+(tính theo công thức firmware, không cần thiết bị) và “Thiết bị thật (MQTT)” kết nối `ws://localhost:9001`
+(đổi thành IP LAN nếu mở từ máy khác). Trang hiển thị mô hình 3D, gói MQTT, trạng thái van, quạt, còi
+và cho gửi các lệnh `sim`, `valve`, `fan_test`, `buzzer_test`, `recalibrate`.
 
-1. Mở **http://localhost:8123**, tạo tài khoản qua giao diện (tên/username/password —
-   không có sẵn, tự đặt).
-2. **Settings → Devices & Services → Add Integration → MQTT** → nhập host `mosquitto`,
-   port `1883` (không cần user/pass, Mosquitto đang cho phép anonymous trong LAN) →
-   Submit.
-3. Xong bước 2, cả 7 entity ở bảng trên **tự xuất hiện** trong dashboard "Overview" mặc
-   định (mục Favorites) — không cần tự thêm card thủ công.
+### AI agent
 
-#### Truy cập từ điện thoại
-
-Yêu cầu điện thoại **cùng mạng Wi-Fi** với máy chạy Docker. Dùng địa chỉ
-`http://<IP-LAN-máy-chủ>:8123` (không dùng `localhost` — điện thoại là thiết bị khác,
-không hiểu `localhost` là máy tính bạn). IP này là **IP động theo DHCP**, có thể đổi mỗi
-lần kết nối lại mạng — kiểm tra lại bằng `ipconfig` nếu không vào được. Khuyên đặt IP tĩnh
-cho máy chủ qua router (DHCP reservation theo MAC) để khỏi phải tra lại IP mỗi lần.
-
-Nếu điện thoại không vào được dù đúng IP: kiểm tra **Windows Firewall** trên máy chủ có
-chặn cổng 8123 không (thêm inbound rule cho phép TCP 8123, profile Private).
-
-Muốn cài app chính thức: tải app **"Home Assistant"** trên App Store/Google Play, nhập
-đúng địa chỉ trên để đăng nhập — có thêm tiện ích nhận thông báo đẩy.
-
-#### Truy cập từ xa (ngoài mạng nhà, tùy chọn, chưa cấu hình)
-
-Cách hiện tại chỉ dùng được trong cùng mạng LAN. Muốn xem được từ Internet (4G/5G, không
-cùng Wi-Fi), cần thêm 1 trong: **Nabu Casa Cloud** (dịch vụ chính thức, có phí ~$6.5/
-tháng, dễ cấu hình nhất, không cần mở port router) hoặc tự cấu hình port forwarding +
-domain/dynamic DNS + HTTPS (phức tạp hơn, tự chịu trách nhiệm bảo mật). Chưa triển khai
-phần này trong project.
-
-### Cấu trúc topic MQTT
-
-| Topic | Khi nào gửi | Payload |
-|---|---|---|
-| `airgas/<device>/reading` | Mỗi chu kỳ đọc cảm biến (`GAS_CHECK_PERIOD_MS`) | `{"ppm":420,"mv":650,"threshold":1000,"alarm":false}` |
-| `airgas/<device>/alarm` | Khi vượt ngưỡng, theo cùng cooldown với Discord | `{"ppm":1250,"mv":950,"threshold":1000,"device":"Gas-Monitor-01"}` |
-| `airgas/<device>/status` | Khi kết nối MQTT (retained "online"), tự động "offline" (retained, qua LWT) nếu mất kết nối đột ngột | `online` hoặc `offline` (plain text, không phải JSON) |
-| `airquality/<device>/reading` | Mỗi chu kỳ đọc cảm biến MQ-135 | `{"co2_ppm":650,"mv":720,"threshold":1500,"poor":false}` |
-
-`<device>` là giá trị `GAS_DEVICE_NAME` cấu hình trong menuconfig.
-
-## Build & flash
-
-```
-idf.py set-target esp32
-idf.py build
-idf.py -p COMx flash monitor
-```
-
-(thay `COMx` bằng cổng COM thực tế của board).
+MCP server `airgas` (`ai-agent/airgas_mcp.py`) gọi REST API của Home Assistant, cung cấp 4 công cụ:
+`get_status`, `get_history`, `get_alarm_events` (chỉ đọc) và `control_device` (mở/khóa van, thử quạt, thử còi, hiệu chuẩn).
+Bot Discord dùng MCP này kèm một LLM tương thích OpenAI, lệnh điều khiển luôn hỏi xác nhận bằng nút.
+Chi tiết cài đặt trong [ai-agent/README.md](ai-agent/README.md).
 
 ## Kiểm tra sau khi lắp phần cứng
 
-1. Cấp nguồn trong không khí sạch (không gas) và **giữ nguyên như vậy trong 5 giây đầu**
-   — đây là lúc firmware tự hiệu chuẩn Ro (chỉ chạy 1 lần, xem mục "Ước tính ppm" ở
-   trên). Sau đó để cảm biến làm nóng thêm vài phút trước khi tin vào số liệu.
-2. Theo dõi log qua `idf.py -p COMx monitor`, quan sát dòng
-   `OK: ~<ppm> ppm (raw <mV> mV, threshold <ngưỡng> ppm)` chạy liên tục theo chu kỳ cấu
-   hình.
-3. Đưa nguồn khí thử (bật lửa gas không châm lửa, cồn, khói...) gần cảm biến trong môi
-   trường thông thoáng, quan sát giá trị ppm tăng lên.
-4. Khi giá trị vượt ngưỡng: đèn LED cảnh báo bật sáng ngay (kể cả khi chưa có Wi-Fi), log
-   in `!!! GAS ALARM !!!`, và nếu đã kết nối Wi-Fi + cấu hình webhook thì tin nhắn cảnh
-   báo sẽ xuất hiện trong kênh Discord kèm giá trị ppm ước tính.
-5. Rút nguồn khí thử, thông thoáng lại khu vực, xác nhận đèn LED tắt, giá trị ppm giảm về
-   mức nền và log quay lại trạng thái `OK`.
-6. Thử tắt Wi-Fi router hoặc để sai password, xác nhận đèn LED vẫn hoạt động bình thường
-   theo cảm biến (chỉ riêng phần gửi Discord bị bỏ qua, có log
-   `No Wi-Fi, skipping Discord send`).
+1. Cấp nguồn adapter, cắm USB cho ESP32, đợi vài phút cho cảm biến nóng. Ở lần boot đầu giữ không khí sạch 5 giây để hiệu chuẩn.
+2. Xem `airgas/<device>/reading` bằng `docker exec mosquitto mosquitto_sub -R -t "airgas/#" -v`. Không khí thường cho khoảng 1800 đến 1900 mV, vài ppm LPG, CO₂eq 400 ppm, không có `fault`.
+3. Thử còi: `{"buzzer_test":3}`. Thử quạt: `{"fan_test":60,"duration":10}`. Thử van: `{"valve":"close"}` rồi `{"valve":"open"}`.
+4. Giả lập rò gas: `{"sim":"gas","duration":60}` (hoặc nút trên dashboard). Kỳ vọng: LED sáng, còi bíp nhanh, quạt 100 %, van khóa, Home Assistant chuyển `NGUY_HIEM`, Discord nhận tin có chữ [GIẢ LẬP].
+5. Hết giả lập, van vẫn khóa cho tới khi gửi lệnh mở (nút “Xác nhận an toàn” hoặc `{"valve":"open"}`).
+6. Rút dây VCC của một cảm biến: mức chuyển `LOI_CAM_BIEN`, van đóng, quạt 100 %.
 
-### Test tạm khi chưa lắp cảm biến
+Dấu hiệu lỗi thường gặp: Serial lặp lại dòng khởi động (`Brownout`) là do nguồn, ADC dao động mạnh và đổi khi chạm
+vào board là do chân AOUT bị hở.
 
-Nếu chỉ muốn kiểm tra phần Wi-Fi/Discord/MQTT/logic cooldown mà chưa có cảm biến trong
-tay, có thể giả lập tín hiệu bằng dây nối trực tiếp vào GPIO36 (không đại diện cho hành
-vi cảm biến thật hay giá trị ppm chính xác, chỉ dùng tạm để test luồng phần mềm — do công
-thức Rs tỷ lệ nghịch, điện áp cao giả lập vẫn sẽ đẩy ppm ước tính lên rất cao):
+## Hạn chế
 
-- Nối GPIO36 xuống `GND` → Rs rất lớn → ppm ước tính gần 0, log in trạng thái `OK`.
-- Nối GPIO36 lên `3.3V` (không dùng 5V) → Rs rất nhỏ → ppm ước tính tăng vọt, vượt
-  ngưỡng, log in `!!! GAS ALARM !!!` và gửi Discord/MQTT.
-- Dùng chiết áp giữa `3.3V`–`GND`, chân giữa nối GPIO36, để dò điểm ngưỡng chính xác hơn.
-
-## Hạn chế hiện tại
-
-- Chưa có cảm biến nhiệt độ/độ ẩm để bù trừ đường cong Rs/Ro (cả MQ-2 lẫn MQ-135 đều bị
-  ảnh hưởng bởi nhiệt độ/độ ẩm môi trường theo datasheet).
-- Ước tính ppm chỉ tính 1 loại khí cố định mỗi cảm biến (LPG cho MQ-2, CO2-tương đương
-  cho MQ-135), dùng hằng số cố định trong code — chưa hỗ trợ chọn loại khí khác hay nhập
-  lại hệ số đường cong.
-- Hiệu chuẩn Ro (cả 2 cảm biến) tin tưởng hoàn toàn vào giả định về môi trường ở lần boot
-  đầu (không khí sạch cho MQ-2, mức CO2 nền ~400ppm cho MQ-135), không có cách nào để
-  firmware tự biết môi trường lúc đó có đúng như giả định hay không — không có nút/lệnh
-  hiệu chuẩn lại thủ công, chỉ có thể ép qua `idf.py erase-flash`.
-- MQ-2 và MQ-135 dùng chung 1 ADC unit (`ADC_UNIT_1`) qua `gas_sensor_get_adc_unit()` —
-  `gas_sensor_init()` (MQ-2) phải chạy trước `air_sensor_init()` (MQ-135), thứ tự này
-  không được kiểm tra/báo lỗi rõ ràng nếu bị đổi nhầm trong `gas_main.c`.
-- Đèn LED chỉ có 2 trạng thái sáng/tắt, chưa có nháy/còi để phân biệt mức độ nghiêm
-  trọng hay báo trạng thái mất kết nối Wi-Fi.
-- ADC đọc 1 mẫu/chu kỳ, chưa lọc trung bình để giảm nhiễu tức thời.
-- Chưa có cơ chế lưu cấu hình Wi-Fi qua provisioning (SmartConfig/BLE) — phải cấu hình
-  cứng qua menuconfig trước khi build.
-- Payload gửi Discord ở dạng JSON đơn giản, chưa escape ký tự đặc biệt trong
-  `Device name` nếu người dùng đổi tên chứa dấu `"` hoặc `\`.
-- Mosquitto trong `node-red/docker-compose.yml` cấu hình `allow_anonymous true`, không
-  mật khẩu/TLS — chấp nhận được trong mạng LAN nhà riêng, nhưng không nên expose port
-  1883 ra Internet nguyên trạng.
+- Chưa bù nhiệt độ, độ ẩm cho đường cong Rs/Ro. Mỗi cảm biến chỉ ước tính một loại khí cố định (LPG, CO₂eq).
+- Hiệu chuẩn Ro tin vào giả định môi trường lúc hiệu chuẩn.
+- Mosquitto đang `allow_anonymous true`, không TLS: chỉ dùng trong LAN, không mở cổng 1883, 9001 ra Internet.
+- Node-RED gửi “offline” giả mỗi lần khởi động lại. Hàm “1 điểm / 5 s” trong Node-RED còn báo lỗi `Invalid property expression`.
+- Nội dung tin `danger` luôn ghi “đã khóa van, bật quạt hút và còi” kể cả khi giả lập với `"actuators":false`.
+- Quạt, servo trong mô hình không phải van an toàn chuyên dụng.

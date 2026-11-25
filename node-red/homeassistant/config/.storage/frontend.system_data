@@ -4,8 +4,8 @@
   "key": "frontend.system_data",
   "data": {
     "core": {
-      "onboarded_version": "2026.9.2",
-      "onboarded_date": "2026-09-16T13:04:43.515Z"
+      "onboarded_version": "2026.9.4",
+      "onboarded_date": "2026-10-07T14:17:41.183Z"
     },
     "home": {
       "favorite_entities": [
