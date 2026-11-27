@@ -29,3 +29,11 @@ __pycache__/
 *.xlsx
 HANDOFF.md
 .playwright-mcp/
+
+# Home Assistant runtime data: tokens, password hash, database, logs, icon cache
+node-red/homeassistant/config/.cache/
+node-red/homeassistant/config/.storage/
+node-red/homeassistant/config/blueprints/
+node-red/homeassistant/config/.ha_run.lock
+node-red/homeassistant/config/.HA_VERSION
+node-red/homeassistant/config/home-assistant*

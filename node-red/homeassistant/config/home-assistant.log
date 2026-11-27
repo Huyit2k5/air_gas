@@ -1,2 +1,0 @@
-2026-11-25 18:55:49.989 WARNING (Recorder) [homeassistant.components.recorder.util] The system could not validate that the sqlite3 database at //config/home-assistant_v2.db was shutdown cleanly
-2026-11-25 18:55:54.671 WARNING (MainThread) [homeassistant.components.met] Skip setting up met.no integration; No Home location has been set
